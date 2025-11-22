@@ -66,10 +66,7 @@ public class Audio3AProcessor : IDisposable
         switch (_config.ProcessingOrder)
         {
             case ProcessingOrder.Standard:
-                // WebRTC 推荐顺序：AEC -> ANS -> AGC
-                AddProcessorToPipeline(_aecProcessor);
-                AddProcessorToPipeline(_ansProcessor);
-                AddProcessorToPipeline(_agcProcessor);
+                ConfigureStandardPipeline();
                 break;
 
             case ProcessingOrder.NoiseSuppressFirst:
@@ -89,12 +86,24 @@ public class Audio3AProcessor : IDisposable
             case ProcessingOrder.Custom:
                 // 自定义模式：用户需要手动配置 Pipeline
                 _logger.LogWarning("Custom processing order selected but not configured. Using standard order.");
-                goto case ProcessingOrder.Standard;
+                ConfigureStandardPipeline();
+                break;
 
             default:
                 _logger.LogWarning("Unknown processing order {Order}, using standard order", _config.ProcessingOrder);
-                goto case ProcessingOrder.Standard;
+                ConfigureStandardPipeline();
+                break;
         }
+    }
+
+    /// <summary>
+    /// 配置标准处理顺序：AEC -> ANS -> AGC（WebRTC 推荐）
+    /// </summary>
+    private void ConfigureStandardPipeline()
+    {
+        AddProcessorToPipeline(_aecProcessor);
+        AddProcessorToPipeline(_ansProcessor);
+        AddProcessorToPipeline(_agcProcessor);
     }
 
     /// <summary>

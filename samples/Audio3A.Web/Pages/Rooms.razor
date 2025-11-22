@@ -107,12 +107,12 @@ else
 
     private void CreateRoom()
     {
-        Navigation.NavigateTo("/rooms/create");
+        Navigation.NavigateTo("rooms/create");
     }
 
     private void ViewRoom(string roomId)
     {
-        Navigation.NavigateTo($"/rooms/{roomId}");
+        Navigation.NavigateTo($"rooms/{roomId}");
     }
 
     private async Task DeleteRoom(string roomId)

@@ -11,17 +11,23 @@
     <Layout>
         <Sider Width="250" Style="background: #fff;">
             <Menu Mode="MenuMode.Inline" Style="height: 100%;">
-                <MenuItem Key="dashboard" RouterLink="/" RouterMatch="NavLinkMatch.All">
-                    <Icon Type="dashboard" Theme="outline" />
-                    <span>控制台</span>
+                <MenuItem Key="dashboard">
+                    <a href="" style="text-decoration: none; color: inherit; display: flex; align-items: center;">
+                        <Icon Type="dashboard" Theme="outline" />
+                        <span style="margin-left: 8px;">控制台</span>
+                    </a>
                 </MenuItem>
-                <MenuItem Key="rooms" RouterLink="/rooms">
-                    <Icon Type="team" Theme="outline" />
-                    <span>房间管理</span>
+                <MenuItem Key="rooms">
+                    <a href="rooms" style="text-decoration: none; color: inherit; display: flex; align-items: center;">
+                        <Icon Type="team" Theme="outline" />
+                        <span style="margin-left: 8px;">房间管理</span>
+                    </a>
                 </MenuItem>
-                <MenuItem Key="create" RouterLink="/rooms/create">
-                    <Icon Type="plus-circle" Theme="outline" />
-                    <span>创建房间</span>
+                <MenuItem Key="create">
+                    <a href="rooms/create" style="text-decoration: none; color: inherit; display: flex; align-items: center;">
+                        <Icon Type="plus-circle" Theme="outline" />
+                        <span style="margin-left: 8px;">创建房间</span>
+                    </a>
                 </MenuItem>
             </Menu>
         </Sider>

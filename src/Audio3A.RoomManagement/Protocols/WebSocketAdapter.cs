@@ -36,24 +36,34 @@ public class WebSocketAdapter : ITransportAdapter
         return Task.CompletedTask;
     }
 
-    public Task StopAsync(CancellationToken cancellationToken = default)
+    public async Task StopAsync(CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Stopping WebSocket adapter");
 
         // 关闭所有连接
+        var closeTasks = new List<Task>();
         foreach (var connection in _connections.Values)
         {
             if (connection.State == WebSocketState.Open)
             {
-                connection.CloseAsync(WebSocketCloseStatus.NormalClosure, "Server shutting down", cancellationToken)
-                    .Wait(cancellationToken);
+                closeTasks.Add(connection.CloseAsync(
+                    WebSocketCloseStatus.NormalClosure, 
+                    "Server shutting down", 
+                    cancellationToken));
             }
+        }
+
+        try
+        {
+            await Task.WhenAll(closeTasks);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error closing WebSocket connections during shutdown");
         }
 
         _connections.Clear();
         _participantRooms.Clear();
-
-        return Task.CompletedTask;
     }
 
     /// <summary>

@@ -38,7 +38,7 @@ public class RoomManager
         TransportProtocol supportedProtocols = TransportProtocol.Hybrid)
     {
         roomId ??= Guid.NewGuid().ToString();
-        roomName ??= $"Room_{roomId.Substring(0, 8)}";
+        roomName ??= $"Room_{roomId.Substring(0, Math.Min(roomId.Length, 8))}";
 
         // 使用默认音频配置或提供的配置
         var config = audioConfig ?? new Audio3AConfig

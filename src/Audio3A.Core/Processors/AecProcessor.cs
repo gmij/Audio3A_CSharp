@@ -149,11 +149,11 @@ public class AecProcessor : IAudioProcessor
     /// </summary>
     private bool DetectDoubleTalk(float micPower, float refPower, float errorPower)
     {
-        // Simple energy-based double-talk detection
-        // If mic energy is much higher than reference, likely double-talk
-        if (refPower < 1e-10f) return false;
+        // Require minimum reference power for meaningful detection
+        const float minRefPower = 1e-6f;
+        if (refPower < minRefPower) return false;
         
-        float ratio = micPower / (refPower + 1e-10f);
+        float ratio = micPower / refPower;
         return ratio > _dtdThreshold;
     }
     

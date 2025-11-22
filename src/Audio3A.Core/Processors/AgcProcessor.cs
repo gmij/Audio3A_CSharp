@@ -93,18 +93,12 @@ public class AgcProcessor : IAudioProcessor
             {
                 float levelDiff = _targetLevel / _envelopeLevel;
                 
-                if (isSpeech)
-                {
-                    // During speech: apply compression/expansion
-                    desiredGain = levelDiff < 1.0f
+                // During speech: apply compression/expansion; during silence: gentle gain adjustment
+                desiredGain = isSpeech
+                    ? (levelDiff < 1.0f
                         ? (float)Math.Pow(levelDiff, 1.0 / _compressionRatio)  // Compression
-                        : Math.Min(levelDiff, _maxGain);  // Expansion (WebRTC allows higher gain)
-                }
-                else
-                {
-                    // During silence: gentle gain adjustment to avoid amplifying noise
-                    desiredGain = Math.Min(levelDiff, 2.0f);
-                }
+                        : Math.Min(levelDiff, _maxGain))  // Expansion (WebRTC allows higher gain)
+                    : Math.Min(levelDiff, 2.0f); // Silence: avoid amplifying noise
             }
 
             // Smooth gain changes with adaptive smoothing
@@ -149,14 +143,9 @@ public class AgcProcessor : IAudioProcessor
         // Simple energy-based VAD with hysteresis
         float snr = frameEnergy / (_noiseFloor + 1e-10f);
         
-        if (snr > _vadThreshold)
-        {
-            _speechFrameCount = Math.Min(_speechFrameCount + 1, 10);
-        }
-        else
-        {
-            _speechFrameCount = Math.Max(_speechFrameCount - 1, 0);
-        }
+        _speechFrameCount = snr > _vadThreshold
+            ? Math.Min(_speechFrameCount + 1, 10)
+            : Math.Max(_speechFrameCount - 1, 0);
         
         // Require multiple frames for speech decision (hysteresis)
         return _speechFrameCount > 3;

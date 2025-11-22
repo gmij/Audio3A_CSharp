@@ -35,6 +35,9 @@ public class Audio3AProcessorTests
             services.AddScoped<AnsProcessor>(sp => new AnsProcessor(ansLogger, config.SampleRate, noiseReductionDb: config.AnsNoiseReductionDb));
         }
         
+        // Register ProcessorPipeline logger
+        services.AddSingleton<Microsoft.Extensions.Logging.ILogger<ProcessorPipeline>>(TestLoggerFactory.CreateNullLogger<ProcessorPipeline>());
+        
         var serviceProvider = services.BuildServiceProvider();
         var logger = serviceProvider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Audio3AProcessor>>();
         

@@ -6,6 +6,7 @@ namespace Audio3A.Core;
 
 /// <summary>
 /// Main Audio 3A processor that combines AEC, AGC, and ANS
+/// 支持可配置的处理器执行顺序（遵循开放/封闭原则）
 /// </summary>
 public class Audio3AProcessor : IDisposable
 {
@@ -14,6 +15,7 @@ public class Audio3AProcessor : IDisposable
     private readonly AecProcessor? _aecProcessor;
     private readonly AgcProcessor? _agcProcessor;
     private readonly AnsProcessor? _ansProcessor;
+    private readonly ProcessorPipeline _pipeline;
     private bool _disposed;
 
     /// <summary>
@@ -46,13 +48,68 @@ public class Audio3AProcessor : IDisposable
             _ansProcessor = serviceProvider.GetService<AnsProcessor>();
         }
 
+        // Create pipeline based on configured processing order
+        var pipelineLogger = serviceProvider.GetRequiredService<ILogger<ProcessorPipeline>>();
+        _pipeline = new ProcessorPipeline(pipelineLogger);
+        ConfigurePipeline();
+
         _logger.LogInformation(
-            "Audio3A processor initialized: AEC={AecEnabled}, AGC={AgcEnabled}, ANS={AnsEnabled}, SampleRate={SampleRate}",
-            _config.EnableAec, _config.EnableAgc, _config.EnableAns, _config.SampleRate);
+            "Audio3A processor initialized: AEC={AecEnabled}, AGC={AgcEnabled}, ANS={AnsEnabled}, Order={ProcessingOrder}, SampleRate={SampleRate}",
+            _config.EnableAec, _config.EnableAgc, _config.EnableAns, _config.ProcessingOrder, _config.SampleRate);
     }
 
     /// <summary>
-    /// Process audio with 3A algorithms
+    /// 根据配置设置处理器管道顺序
+    /// </summary>
+    private void ConfigurePipeline()
+    {
+        switch (_config.ProcessingOrder)
+        {
+            case ProcessingOrder.Standard:
+                // WebRTC 推荐顺序：AEC -> ANS -> AGC
+                AddProcessorToPipeline(_aecProcessor);
+                AddProcessorToPipeline(_ansProcessor);
+                AddProcessorToPipeline(_agcProcessor);
+                break;
+
+            case ProcessingOrder.NoiseSuppressFirst:
+                // 噪声优先：ANS -> AEC -> AGC
+                AddProcessorToPipeline(_ansProcessor);
+                AddProcessorToPipeline(_aecProcessor);
+                AddProcessorToPipeline(_agcProcessor);
+                break;
+
+            case ProcessingOrder.GainControlFirst:
+                // 增益优先：AGC -> AEC -> ANS
+                AddProcessorToPipeline(_agcProcessor);
+                AddProcessorToPipeline(_aecProcessor);
+                AddProcessorToPipeline(_ansProcessor);
+                break;
+
+            case ProcessingOrder.Custom:
+                // 自定义模式：用户需要手动配置 Pipeline
+                _logger.LogWarning("Custom processing order selected but not configured. Using standard order.");
+                goto case ProcessingOrder.Standard;
+
+            default:
+                _logger.LogWarning("Unknown processing order {Order}, using standard order", _config.ProcessingOrder);
+                goto case ProcessingOrder.Standard;
+        }
+    }
+
+    /// <summary>
+    /// 添加处理器到管道（如果非空）
+    /// </summary>
+    private void AddProcessorToPipeline(IAudioProcessor? processor)
+    {
+        if (processor != null)
+        {
+            _pipeline.AddProcessor(processor);
+        }
+    }
+
+    /// <summary>
+    /// Process audio with 3A algorithms using configured pipeline order
     /// </summary>
     /// <param name="micInput">Microphone input buffer</param>
     /// <param name="speakerReference">Speaker reference signal for echo cancellation (optional)</param>
@@ -66,30 +123,7 @@ public class Audio3AProcessor : IDisposable
 
         _logger.LogTrace("Processing audio buffer: Length={Length} samples", micInput.Length);
 
-        AudioBuffer current = micInput;
-
-        // Apply AEC first to remove echo
-        if (_aecProcessor != null)
-        {
-            _logger.LogTrace("Applying AEC processing");
-            current = _aecProcessor.Process(current, speakerReference);
-        }
-
-        // Apply ANS to remove noise
-        if (_ansProcessor != null)
-        {
-            _logger.LogTrace("Applying ANS processing");
-            current = _ansProcessor.Process(current);
-        }
-
-        // Apply AGC last to normalize volume
-        if (_agcProcessor != null)
-        {
-            _logger.LogTrace("Applying AGC processing");
-            current = _agcProcessor.Process(current);
-        }
-
-        return current;
+        return _pipeline.Process(micInput, speakerReference);
     }
 
     /// <summary>
@@ -115,15 +149,18 @@ public class Audio3AProcessor : IDisposable
     public void Reset()
     {
         _logger.LogDebug("Resetting all processors");
-        _aecProcessor?.Reset();
-        _agcProcessor?.Reset();
-        _ansProcessor?.Reset();
+        _pipeline.Reset();
     }
 
     /// <summary>
     /// Gets the current configuration
     /// </summary>
     public Audio3AConfig Config => _config;
+
+    /// <summary>
+    /// Gets the processor pipeline (for custom configuration when ProcessingOrder is Custom)
+    /// </summary>
+    public ProcessorPipeline Pipeline => _pipeline;
 
     public void Dispose()
     {

@@ -21,6 +21,11 @@ public class Audio3AConfig
     public bool EnableAns { get; set; } = true;
 
     /// <summary>
+    /// 处理器执行顺序（默认：标准顺序 AEC -> ANS -> AGC）
+    /// </summary>
+    public ProcessingOrder ProcessingOrder { get; set; } = ProcessingOrder.Standard;
+
+    /// <summary>
     /// Audio sample rate in Hz
     /// </summary>
     public int SampleRate { get; set; } = 16000;

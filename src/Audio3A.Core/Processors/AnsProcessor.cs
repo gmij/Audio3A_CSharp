@@ -19,19 +19,16 @@ public class AnsProcessor : IAudioProcessor
     private readonly int _smoothingFrames = 20;
     private float _speechProbability;
     private readonly float _overSubtractionFactor = 2.0f;  // WebRTC uses over-subtraction
-    private static readonly Random _random = new Random();  // Static for better randomness
     
     /// <summary>
     /// Initializes a new ANS processor with WebRTC-inspired noise estimation
     /// </summary>
     /// <param name="logger">Logger instance</param>
     /// <param name="sampleRate">Sample rate in Hz</param>
-    /// <param name="fftSize">FFT size for frequency analysis (reserved for future use)</param>
     /// <param name="noiseReductionDb">Noise reduction strength in dB</param>
     public AnsProcessor(
         ILogger<AnsProcessor> logger,
         int sampleRate = 16000,
-        int fftSize = 256,
         float noiseReductionDb = 20.0f)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -86,7 +83,7 @@ public class AnsProcessor : IAudioProcessor
             // Add minimal comfort noise during silence (WebRTC-inspired)
             if (_speechProbability < 0.3f)
             {
-                float comfortNoise = SignalProcessingHelpers.GenerateComfortNoise(_random);
+                float comfortNoise = SignalProcessingHelpers.GenerateComfortNoise();
                 suppressedSample += comfortNoise;
             }
             

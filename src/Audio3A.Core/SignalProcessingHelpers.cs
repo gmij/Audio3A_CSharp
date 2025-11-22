@@ -76,12 +76,12 @@ public static class SignalProcessingHelpers
 
     /// <summary>
     /// 生成舒适噪声（WebRTC 风格）
+    /// 使用 Random.Shared 确保线程安全
     /// </summary>
-    /// <param name="random">随机数生成器</param>
     /// <param name="amplitude">噪声幅度（默认 0.001）</param>
     /// <returns>噪声样本</returns>
-    public static float GenerateComfortNoise(Random random, float amplitude = 0.001f)
+    public static float GenerateComfortNoise(float amplitude = 0.001f)
     {
-        return amplitude * (float)(2.0 * (random.NextDouble() - 0.5));
+        return amplitude * (float)(2.0 * (Random.Shared.NextDouble() - 0.5));
     }
 }

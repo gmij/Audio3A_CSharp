@@ -26,16 +26,16 @@ jobs:
         with:
           dotnet-version: 8.0.x
       
-      - name: Restore dependencies
-        run: dotnet restore
+      - name: Restore Web App dependencies
+        run: dotnet restore samples/Audio3A.Web/Audio3A.Web.csproj
       
-      - name: Build
-        run: dotnet build --configuration Release --no-restore
+      - name: Build Web App
+        run: dotnet build samples/Audio3A.Web/Audio3A.Web.csproj --configuration Release --no-restore
       
       - name: Publish Web App
         run: dotnet publish samples/Audio3A.Web/Audio3A.Web.csproj -c Release -o release --nologo
       
-      - name: Change base-tag in index.html
+      - name: Change base-tag in index.html for GitHub Pages
         run: sed -i 's/<base href="\/" \/>/<base href="\/Audio3A_CSharp\/" \/>/g' release/wwwroot/index.html
       
       - name: Add .nojekyll file

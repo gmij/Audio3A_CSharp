@@ -2,13 +2,29 @@
 
 一个基于 .NET 8 的原生音频 3A (AEC, AGC, ANS) 处理 SDK，支持依赖注入和官方日志记录。
 
+**🆕 现已支持实时语音通话房间管理系统！** 支持多房间、多人通话、WebSocket/WebRTC 协议。
+
 ## 功能特性
+
+### 核心音频处理
 
 Audio 3A SDK 提供了三种核心的音频处理算法：
 
 - **AEC (Acoustic Echo Cancellation)** - 回声消除：消除扬声器播放引起的麦克风回声
 - **AGC (Automatic Gain Control)** - 自动增益控制：自动调节音频音量，保持一致的输出电平
 - **ANS (Automatic Noise Suppression)** - 自动噪声抑制：减少背景噪声，同时保留语音
+
+### 🆕 房间管理系统
+
+全新的 `Audio3A.RoomManagement` 模块提供完整的实时语音通话房间管理：
+
+- ✅ **多房间管理** - 同时管理多个独立的语音通话房间
+- ✅ **多人通话** - 每个房间支持多人同时在线
+- ✅ **协议支持** - WebSocket、WebRTC 或混合协议
+- ✅ **音频混音** - 实时混合多路音频流
+- ✅ **3A 集成** - 每个参与者独立的音频处理
+
+👉 [查看房间管理系统文档](src/Audio3A.RoomManagement/README.md)
 
 ### .NET 8 现代特性
 
@@ -26,27 +42,37 @@ Audio 3A SDK 提供了三种核心的音频处理算法：
 ```
 Audio3A_CSharp/
 ├── src/
-│   └── Audio3A.Core/          # 核心库
-│       ├── AudioBuffer.cs      # 音频缓冲区
-│       ├── AudioFormat.cs      # 音频格式
-│       ├── Audio3AConfig.cs    # 配置类
-│       ├── Audio3AProcessor.cs # 主处理器
-│       ├── IAudioProcessor.cs  # 处理器接口
-│       ├── Extensions/         # 扩展方法
-│       │   └── ServiceCollectionExtensions.cs  # DI 注册扩展
-│       └── Processors/         # 3A 算法实现
-│           ├── AecProcessor.cs # 回声消除
-│           ├── AgcProcessor.cs # 自动增益控制
-│           └── AnsProcessor.cs # 噪声抑制
+│   ├── Audio3A.Core/           # 核心库
+│   │   ├── AudioBuffer.cs      # 音频缓冲区
+│   │   ├── AudioFormat.cs      # 音频格式
+│   │   ├── Audio3AConfig.cs    # 配置类
+│   │   ├── Audio3AProcessor.cs # 主处理器
+│   │   ├── IAudioProcessor.cs  # 处理器接口
+│   │   ├── Extensions/         # 扩展方法
+│   │   │   └── ServiceCollectionExtensions.cs  # DI 注册扩展
+│   │   └── Processors/         # 3A 算法实现
+│   │       ├── AecProcessor.cs # 回声消除
+│   │       ├── AgcProcessor.cs # 自动增益控制
+│   │       └── AnsProcessor.cs # 噪声抑制
+│   └── Audio3A.RoomManagement/ # 🆕 房间管理系统
+│       ├── RoomManager.cs      # 房间管理器
+│       ├── Models/             # 数据模型
+│       ├── Audio/              # 音频处理
+│       ├── Protocols/          # 协议适配器
+│       └── Extensions/         # DI 扩展
 ├── samples/
-│   └── Audio3A.Demo/          # 示例程序
+│   ├── Audio3A.Demo/          # 3A 处理示例
+│   └── Audio3A.RoomDemo/      # 🆕 房间管理示例
 └── tests/
-    └── Audio3A.Tests/         # 单元测试
+    ├── Audio3A.Tests/         # 3A 单元测试
+    └── Audio3A.RoomManagement.Tests/ # 🆕 房间管理测试
 ```
 
 ## 快速开始
 
-### 1. 使用依赖注入（推荐）
+### 音频 3A 处理
+
+#### 1. 使用依赖注入（推荐）
 
 ```csharp
 using Audio3A.Core.Extensions;
@@ -244,6 +270,52 @@ var host = Host.CreateDefaultBuilder(args)
 using var scope = host.Services.CreateScope();
 var processor = scope.ServiceProvider.GetRequiredService<Audio3AProcessor>();
 ```
+
+### 🆕 房间管理系统快速开始
+
+```csharp
+using Audio3A.Core.Extensions;
+using Audio3A.RoomManagement;
+using Audio3A.RoomManagement.Extensions;
+using Audio3A.RoomManagement.Models;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+
+var host = Host.CreateDefaultBuilder(args)
+    .ConfigureServices((context, services) =>
+    {
+        // 注册 Audio3A 和房间管理服务
+        services.AddAudio3A(config =>
+        {
+            config.EnableAec = true;
+            config.EnableAgc = true;
+            config.EnableAns = true;
+            config.SampleRate = 16000;
+        });
+        
+        services.AddRoomManagement(options =>
+        {
+            options.EnableWebSocket = true;
+            options.DefaultMaxParticipants = 10;
+        });
+    })
+    .Build();
+
+using var scope = host.Services.CreateScope();
+var roomManager = scope.ServiceProvider.GetRequiredService<RoomManager>();
+
+// 创建房间
+var audioConfig = new Audio3AConfig { SampleRate = 16000, EnableAec = true, EnableAgc = true, EnableAns = true };
+var room = roomManager.CreateRoom("room-001", "会议室", audioConfig);
+
+// 参与者加入
+var participant = new Participant("user-001", "张三", room.Id, TransportProtocol.WebSocket);
+roomManager.JoinRoom(room.Id, participant);
+
+Console.WriteLine($"房间 {room.Name} 已创建，{participant.Name} 已加入！");
+```
+
+👉 **更多示例和详细文档**：[房间管理系统完整文档](src/Audio3A.RoomManagement/README.md)
 
 ## 日志记录
 

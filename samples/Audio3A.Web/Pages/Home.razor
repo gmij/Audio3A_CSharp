@@ -1,5 +1,5 @@
 ﻿@page "/"
-@inject HttpClient Http
+@inject MockApiService MockApi
 
 <PageTitle>控制台 - Audio3A</PageTitle>
 
@@ -77,11 +77,16 @@
     {
         try
         {
-            _stats = await Http.GetFromJsonAsync<Stats>("api/rooms/stats") ?? new Stats();
+            var stats = await MockApi.GetStats();
+            _stats = new Stats
+            {
+                TotalRooms = stats.TotalRooms,
+                ActiveRooms = stats.ActiveRooms,
+                TotalParticipants = stats.TotalParticipants
+            };
         }
         catch
         {
-            // 如果 API 不可用，使用模拟数据
             _stats = new Stats { TotalRooms = 0, ActiveRooms = 0, TotalParticipants = 0 };
         }
     }

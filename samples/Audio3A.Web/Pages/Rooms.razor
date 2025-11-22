@@ -1,6 +1,7 @@
 @page "/rooms"
-@inject HttpClient Http
+@inject MockApiService MockApi
 @inject NavigationManager Navigation
+@inject IMessageService Message
 
 <PageTitle>房间管理 - Audio3A</PageTitle>
 
@@ -70,17 +71,7 @@ else
 }
 
 @code {
-    private class RoomInfo
-    {
-        public string Id { get; set; } = string.Empty;
-        public string Name { get; set; } = string.Empty;
-        public string State { get; set; } = string.Empty;
-        public int ParticipantCount { get; set; }
-        public int MaxParticipants { get; set; }
-        public DateTime CreatedAt { get; set; }
-    }
-
-    private List<RoomInfo> _rooms = new();
+    private List<MockApiService.RoomInfo> _rooms = new();
     private bool _loading = true;
 
     protected override async Task OnInitializedAsync()
@@ -93,11 +84,11 @@ else
         _loading = true;
         try
         {
-            _rooms = await Http.GetFromJsonAsync<List<RoomInfo>>("api/rooms") ?? new List<RoomInfo>();
+            _rooms = await MockApi.GetRooms();
         }
         catch
         {
-            _rooms = new List<RoomInfo>();
+            _rooms = new List<MockApiService.RoomInfo>();
         }
         finally
         {
@@ -119,12 +110,13 @@ else
     {
         try
         {
-            await Http.DeleteAsync($"api/rooms/{roomId}");
+            await MockApi.DeleteRoom(roomId);
+            await Message.Success("房间已删除");
             await LoadRooms();
         }
         catch
         {
-            // Handle error
+            await Message.Error("删除失败");
         }
     }
 }

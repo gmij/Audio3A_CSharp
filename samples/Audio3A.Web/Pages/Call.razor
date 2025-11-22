@@ -1,0 +1,268 @@
+@page "/call/{RoomId}/{ParticipantId}"
+@inject MockApiService MockApi
+@inject AudioCallService AudioService
+@inject NavigationManager Navigation
+@inject IMessageService Message
+@implements IAsyncDisposable
+
+<PageTitle>语音通话 - Audio3A</PageTitle>
+
+<div class="call-container">
+    @if (_room == null)
+    {
+        <div class="call-loading">
+            <Spin Size="large" />
+            <p>加载中...</p>
+        </div>
+    }
+    else
+    {
+        <div class="call-header">
+            <h2>@_room.Name</h2>
+            <div class="call-info">
+                <Badge Status="processing" Text="@($"{_callDuration:hh\\:mm\\:ss}")" />
+                <span style="margin-left: 16px;">参与者: @_room.Participants.Count</span>
+            </div>
+        </div>
+
+        <div class="call-main">
+            <!-- 本地用户 -->
+            <div class="participant-card local">
+                <Avatar Size="100" Style="@GetAvatarStyle(_audioLevel)">
+                    <Icon Type="user" Theme="outline" />
+                </Avatar>
+                <div class="participant-name">@_participantName (您)</div>
+                <div class="audio-indicator">
+                    <Progress Percent="@((int)(_audioLevel * 100))" ShowInfo="false" />
+                </div>
+            </div>
+
+            <!-- 其他参与者 -->
+            @foreach (var p in _room.Participants.Where(p => p.Id != ParticipantId))
+            {
+                <div class="participant-card">
+                    <Avatar Size="100">
+                        <Icon Type="user" Theme="outline" />
+                    </Avatar>
+                    <div class="participant-name">@p.Name</div>
+                    <div class="audio-indicator">
+                        <Progress Percent="0" ShowInfo="false" />
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="call-controls">
+            <Button Type="@ButtonType.Default" 
+                    Shape="circle" 
+                    Size="large"
+                    OnClick="ToggleMute"
+                    Style="@GetMuteButtonStyle()">
+                <Icon Type="@(AudioService.IsMuted ? "audio-muted" : "audio")" Theme="outline" />
+            </Button>
+
+            <Button Type="@ButtonType.Primary" 
+                    Danger
+                    Shape="circle" 
+                    Size="large"
+                    OnClick="EndCall"
+                    Style="width: 80px; height: 80px; font-size: 32px;">
+                <Icon Type="phone" Theme="outline" Rotate="135" />
+            </Button>
+
+            <Button Type="@ButtonType.Default" 
+                    Shape="circle" 
+                    Size="large"
+                    Disabled>
+                <Icon Type="setting" Theme="outline" />
+            </Button>
+        </div>
+    }
+</div>
+
+<style>
+    .call-container {
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .call-header {
+        padding: 24px;
+        text-align: center;
+    }
+
+    .call-header h2 {
+        color: white;
+        margin-bottom: 8px;
+    }
+
+    .call-info {
+        color: rgba(255, 255, 255, 0.9);
+    }
+
+    .call-main {
+        flex: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 32px;
+        flex-wrap: wrap;
+        padding: 32px;
+    }
+
+    .participant-card {
+        text-align: center;
+        background: rgba(255, 255, 255, 0.1);
+        padding: 24px;
+        border-radius: 16px;
+        backdrop-filter: blur(10px);
+    }
+
+    .participant-card.local {
+        border: 2px solid #52c41a;
+    }
+
+    .participant-name {
+        margin-top: 16px;
+        font-size: 16px;
+        font-weight: 500;
+    }
+
+    .audio-indicator {
+        margin-top: 12px;
+        width: 120px;
+    }
+
+    .call-controls {
+        padding: 32px;
+        display: flex;
+        justify-content: center;
+        gap: 24px;
+    }
+
+    .call-loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+    }
+
+    .call-loading p {
+        margin-top: 16px;
+        font-size: 16px;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public string? RoomId { get; set; }
+
+    [Parameter]
+    public string? ParticipantId { get; set; }
+
+    private MockApiService.RoomDetailInfo? _room;
+    private string _participantName = "";
+    private float _audioLevel = 0;
+    private TimeSpan _callDuration = TimeSpan.Zero;
+    private System.Timers.Timer? _timer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 加载房间信息
+        if (!string.IsNullOrEmpty(RoomId))
+        {
+            _room = await MockApi.GetRoom(RoomId);
+            if (_room != null)
+            {
+                var participant = _room.Participants.FirstOrDefault(p => p.Id == ParticipantId);
+                if (participant != null)
+                {
+                    _participantName = participant.Name;
+                }
+
+                // 启动音频通话
+                bool enable3A = _room.EnableAec || _room.EnableAgc || _room.EnableAns;
+                await AudioService.InitializeAsync();
+                await AudioService.StartCallAsync(RoomId, enable3A);
+
+                // 注册事件
+                AudioService.OnAudioLevel += OnAudioLevel;
+                AudioService.OnError += OnError;
+
+                // 启动计时器
+                _timer = new System.Timers.Timer(1000);
+                _timer.Elapsed += (s, e) =>
+                {
+                    _callDuration = _callDuration.Add(TimeSpan.FromSeconds(1));
+                    InvokeAsync(StateHasChanged);
+                };
+                _timer.Start();
+            }
+        }
+    }
+
+    private void OnAudioLevel(string participantId, float level)
+    {
+        if (participantId == "local")
+        {
+            _audioLevel = level;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void OnError(string message)
+    {
+        InvokeAsync(async () =>
+        {
+            await Message.Error($"通话错误: {message}");
+        });
+    }
+
+    private async Task ToggleMute()
+    {
+        await AudioService.ToggleMuteAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task EndCall()
+    {
+        _timer?.Stop();
+        await AudioService.EndCallAsync();
+        
+        if (!string.IsNullOrEmpty(RoomId) && !string.IsNullOrEmpty(ParticipantId))
+        {
+            await MockApi.LeaveRoom(RoomId, ParticipantId);
+        }
+
+        Navigation.NavigateTo(Navigation.ToAbsoluteUri("rooms").ToString(), forceLoad: false);
+    }
+
+    private string GetAvatarStyle(float level)
+    {
+        var scale = 1 + (level * 0.2); // 1.0 to 1.2
+        var glow = (int)(level * 20); // 0 to 20
+        return $"transform: scale({scale}); box-shadow: 0 0 {glow}px rgba(82, 196, 26, 0.8);";
+    }
+
+    private string GetMuteButtonStyle()
+    {
+        return AudioService.IsMuted ? "background-color: #ff4d4f; color: white;" : "";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _timer?.Dispose();
+
+        AudioService.OnAudioLevel -= OnAudioLevel;
+        AudioService.OnError -= OnError;
+
+        if (AudioService.IsConnected)
+        {
+            await AudioService.EndCallAsync();
+        }
+    }
+}

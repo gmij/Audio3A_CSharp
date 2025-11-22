@@ -1,5 +1,5 @@
 @page "/rooms/create"
-@inject HttpClient Http
+@inject MockApiService MockApi
 @inject NavigationManager Navigation
 @inject IMessageService Message
 
@@ -82,16 +82,16 @@
         _submitting = true;
         try
         {
-            var response = await Http.PostAsJsonAsync("api/rooms", _model);
-            if (response.IsSuccessStatusCode)
-            {
-                await Message.Success("房间创建成功！");
-                Navigation.NavigateTo(Navigation.ToAbsoluteUri("rooms").ToString(), forceLoad: false);
-            }
-            else
-            {
-                await Message.Error("创建房间失败，请重试");
-            }
+            var room = await MockApi.CreateRoom(
+                _model.Name,
+                _model.MaxParticipants,
+                _model.EnableAec,
+                _model.EnableAgc,
+                _model.EnableAns
+            );
+
+            await Message.Success($"房间创建成功！邀请码: {room.InviteCode}");
+            Navigation.NavigateTo(Navigation.ToAbsoluteUri($"rooms/{room.Id}").ToString(), forceLoad: false);
         }
         catch (Exception ex)
         {

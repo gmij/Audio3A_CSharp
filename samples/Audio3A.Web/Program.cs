@@ -39,4 +39,10 @@ builder.Services.AddScoped(sp =>
 // Add Ant Design Blazor
 builder.Services.AddAntDesign();
 
+// Add Mock API Service (for GitHub Pages demo)
+builder.Services.AddSingleton<MockApiService>();
+
+// Add Audio Call Service
+builder.Services.AddScoped<AudioCallService>();
+
 await builder.Build().RunAsync();

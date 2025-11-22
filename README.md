@@ -37,6 +37,41 @@ Audio 3A SDK 提供了三种核心的音频处理算法：
 
 - .NET 8.0 或更高版本
 
+## 🚀 运行完整系统
+
+### 一键启动（推荐）
+
+**Windows (PowerShell)**
+```powershell
+.\run-dev.ps1
+```
+
+**Linux/macOS (Bash)**
+```bash
+chmod +x run-dev.sh
+./run-dev.sh
+```
+
+启动后访问：
+- **Web 应用**: https://localhost:5001
+- **API 文档**: https://localhost:7063/swagger
+
+### 手动启动
+
+**终端 1 - 启动 API**
+```bash
+cd samples/Audio3A.WebApi
+dotnet run
+```
+
+**终端 2 - 启动 Web**
+```bash
+cd samples/Audio3A.Web
+dotnet run
+```
+
+👉 **完整运行指南**: [RUNNING.md](RUNNING.md)
+
 ## 项目结构
 
 ```

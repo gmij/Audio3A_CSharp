@@ -172,26 +172,37 @@
 
     protected override async Task OnInitializedAsync()
     {
+        Console.WriteLine($"Call.razor: OnInitializedAsync - RoomId={RoomId}, ParticipantId={ParticipantId}");
+        
         // 加载房间信息
         if (!string.IsNullOrEmpty(RoomId))
         {
             _room = await MockApi.GetRoom(RoomId);
+            Console.WriteLine($"Call.razor: Room loaded - {_room?.Name}, Participants={_room?.Participants.Count}");
+            
             if (_room != null)
             {
                 var participant = _room.Participants.FirstOrDefault(p => p.Id == ParticipantId);
                 if (participant != null)
                 {
                     _participantName = participant.Name;
+                    Console.WriteLine($"Call.razor: Participant name={_participantName}");
                 }
 
                 // 启动音频通话
                 bool enable3A = _room.EnableAec || _room.EnableAgc || _room.EnableAns;
+                Console.WriteLine($"Call.razor: Starting audio call with 3A={enable3A}");
+                
                 await AudioService.InitializeAsync();
+                Console.WriteLine("Call.razor: AudioService initialized");
+                
                 await AudioService.StartCallAsync(RoomId, enable3A);
+                Console.WriteLine("Call.razor: AudioService started");
 
                 // 注册事件
                 AudioService.OnAudioLevel += OnAudioLevel;
                 AudioService.OnError += OnError;
+                Console.WriteLine("Call.razor: Event handlers registered");
 
                 // 启动计时器
                 _timer = new System.Timers.Timer(1000);
@@ -201,15 +212,18 @@
                     InvokeAsync(StateHasChanged);
                 };
                 _timer.Start();
+                Console.WriteLine("Call.razor: Timer started");
             }
         }
     }
 
     private void OnAudioLevel(string participantId, float level)
     {
+        Console.WriteLine($"Call.razor: OnAudioLevel called - participantId={participantId}, level={level:F3}");
         if (participantId == "local")
         {
             _audioLevel = level;
+            Console.WriteLine($"Call.razor: Updated _audioLevel to {_audioLevel:F3}");
             InvokeAsync(StateHasChanged);
         }
     }

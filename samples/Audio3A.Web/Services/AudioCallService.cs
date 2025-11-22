@@ -35,6 +35,7 @@ public class AudioCallService : IAsyncDisposable
         try
         {
             _objRef = DotNetObjectReference.Create(this);
+            // 使用绝对路径（基于base标签）导入JavaScript模块
             _module = await _jsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/audioCall.js");
             await _module.InvokeVoidAsync("initialize", _objRef);
             _isInitialized = true;
@@ -51,8 +52,11 @@ public class AudioCallService : IAsyncDisposable
     /// </summary>
     public async Task StartCallAsync(string roomId, bool enable3A)
     {
+        Console.WriteLine($"AudioCallService: Starting call for room {roomId}, 3A={enable3A}");
+        
         if (!_isInitialized)
         {
+            Console.WriteLine("AudioCallService: Not initialized, initializing now...");
             await InitializeAsync();
         }
 
@@ -60,14 +64,23 @@ public class AudioCallService : IAsyncDisposable
         {
             if (_module != null)
             {
+                Console.WriteLine("AudioCallService: Invoking startCall on JS module");
                 await _module.InvokeVoidAsync("startCall", roomId, enable3A);
                 IsConnected = true;
+                Console.WriteLine("AudioCallService: Call started successfully");
+            }
+            else
+            {
+                Console.WriteLine("AudioCallService: ERROR - Module is null!");
+                throw new InvalidOperationException("JavaScript module not loaded");
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Failed to start call: {ex.Message}");
+            Console.WriteLine($"AudioCallService: Failed to start call: {ex.Message}");
+            Console.WriteLine($"AudioCallService: Stack trace: {ex.StackTrace}");
             OnError?.Invoke(ex.Message);
+            throw;
         }
     }
 
@@ -125,6 +138,7 @@ public class AudioCallService : IAsyncDisposable
     [JSInvokable]
     public void NotifyAudioLevel(string participantId, float level)
     {
+        Console.WriteLine($"AudioCallService: Received audio level - Participant: {participantId}, Level: {level:F3}");
         OnAudioLevel?.Invoke(participantId, level);
     }
 

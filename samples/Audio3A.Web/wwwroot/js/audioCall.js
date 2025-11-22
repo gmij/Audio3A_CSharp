@@ -12,7 +12,14 @@ export function initialize(dotNetReference) {
 }
 
 export async function startCall(roomId, enable3A) {
+    console.log('Starting call for room:', roomId, 'with 3A:', enable3A);
+    
     try {
+        // 检查浏览器支持
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error('浏览器不支持音频采集');
+        }
+
         // 请求麦克风权限
         const constraints = {
             audio: {
@@ -22,26 +29,33 @@ export async function startCall(roomId, enable3A) {
             }
         };
 
+        console.log('Requesting microphone access with constraints:', constraints);
         localStream = await navigator.mediaDevices.getUserMedia(constraints);
+        console.log('Microphone access granted, tracks:', localStream.getAudioTracks().length);
         
         // 创建音频上下文用于分析音频级别
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        console.log('AudioContext created, state:', audioContext.state);
+        
         const source = audioContext.createMediaStreamSource(localStream);
         analyser = audioContext.createAnalyser();
         analyser.fftSize = 256;
         source.connect(analyser);
+        console.log('Audio analyser connected');
 
         isActive = true;
 
         // 开始监控音频级别
         monitorAudioLevel();
+        console.log('Audio level monitoring started');
 
-        console.log('Call started for room:', roomId);
+        console.log('Call started successfully for room:', roomId);
     } catch (error) {
         console.error('Failed to start call:', error);
         if (dotNetRef) {
             await dotNetRef.invokeMethodAsync('NotifyError', error.message);
         }
+        throw error;
     }
 }
 
@@ -74,7 +88,10 @@ export function setMuted(muted) {
 }
 
 function monitorAudioLevel() {
-    if (!isActive || !analyser) return;
+    if (!isActive || !analyser) {
+        console.log('Monitoring stopped - isActive:', isActive, 'analyser:', !!analyser);
+        return;
+    }
 
     const dataArray = new Uint8Array(analyser.frequencyBinCount);
     analyser.getByteFrequencyData(dataArray);
@@ -87,9 +104,20 @@ function monitorAudioLevel() {
     const average = sum / dataArray.length;
     const level = average / 255; // 归一化到 0-1
 
+    // 每100次监控打印一次（约每秒）
+    if (!monitorAudioLevel.counter) monitorAudioLevel.counter = 0;
+    monitorAudioLevel.counter++;
+    if (monitorAudioLevel.counter % 60 === 0) {
+        console.log('Audio level:', level.toFixed(3), 'isMuted:', isMuted);
+    }
+
     // 通知 .NET 代码
     if (dotNetRef && !isMuted) {
-        dotNetRef.invokeMethodAsync('NotifyAudioLevel', 'local', level);
+        try {
+            dotNetRef.invokeMethodAsync('NotifyAudioLevel', 'local', level);
+        } catch (err) {
+            console.error('Failed to notify audio level:', err);
+        }
     }
 
     // 继续监控

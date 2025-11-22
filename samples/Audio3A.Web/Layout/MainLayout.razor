@@ -1,0 +1,32 @@
+﻿@inherits LayoutComponentBase
+
+<Layout Style="min-height: 100vh;">
+    <Header Style="background: #001529; padding: 0;">
+        <div style="display: flex; align-items: center; padding: 0 24px;">
+            <div style="color: white; font-size: 20px; font-weight: bold;">
+                🎙️ Audio3A 实时语音通话管理系统
+            </div>
+        </div>
+    </Header>
+    <Layout>
+        <Sider Width="250" Style="background: #fff;">
+            <Menu Mode="MenuMode.Inline" Style="height: 100%;">
+                <MenuItem Key="dashboard" RouterLink="/" RouterMatch="NavLinkMatch.All">
+                    <Icon Type="dashboard" Theme="outline" />
+                    <span>控制台</span>
+                </MenuItem>
+                <MenuItem Key="rooms" RouterLink="/rooms">
+                    <Icon Type="team" Theme="outline" />
+                    <span>房间管理</span>
+                </MenuItem>
+                <MenuItem Key="create" RouterLink="/rooms/create">
+                    <Icon Type="plus-circle" Theme="outline" />
+                    <span>创建房间</span>
+                </MenuItem>
+            </Menu>
+        </Sider>
+        <Content Style="padding: 24px; background: #f0f2f5;">
+            @Body
+        </Content>
+    </Layout>
+</Layout>

@@ -42,10 +42,27 @@ https://<username>.github.io/Audio3A_CSharp/
 4. **Build** - 构建 Release 版本
 5. **Publish** - 发布 Blazor 应用
 6. **Change base-tag** - 修改 index.html 的 base 标签以适配 GitHub Pages 子路径
-7. **Upload artifact** - 上传构建产物
+7. **Copy 404.html** - 复制 404.html 用于 SPA 路由支持
+8. **Add .nojekyll** - 添加 .nojekyll 文件防止 Jekyll 处理
+9. **Upload artifact** - 上传构建产物
 
 ### 部署步骤
 1. **Deploy to GitHub Pages** - 部署到 GitHub Pages
+
+### SPA 路由支持
+
+Blazor WebAssembly 是单页应用（SPA），所有路由都在客户端处理。为了在 GitHub Pages 上正确支持客户端路由：
+
+1. **404.html** - 当用户直接访问子路由（如 `/Audio3A_CSharp/rooms`）时，GitHub Pages 会返回 404 错误。404.html 会捕获这个请求并重定向到 index.html，同时保留原始路径。
+
+2. **index.html 重定向脚本** - index.html 中的脚本会检测从 404.html 传来的重定向参数，并使用 `history.replaceState` 恢复原始 URL，这样 Blazor Router 就能正确处理路由。
+
+3. **base 标签** - 设置为 `/Audio3A_CSharp/` 确保所有资源路径正确。
+
+这种方案使得用户可以：
+- 直接访问任何页面 URL（如 `https://gmij.github.io/Audio3A_CSharp/rooms`）
+- 刷新页面不会丢失当前路由
+- 在应用内导航正常工作
 
 ## 本地测试部署构建
 

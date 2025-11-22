@@ -38,6 +38,9 @@ jobs:
       - name: Change base-tag in index.html for GitHub Pages
         run: sed -i 's/<base href="\/" \/>/<base href="\/Audio3A_CSharp\/" \/>/g' release/wwwroot/index.html
       
+      - name: Copy 404.html for SPA routing
+        run: cp release/wwwroot/404.html release/wwwroot/404.html || echo "404.html already exists"
+      
       - name: Add .nojekyll file
         run: touch release/wwwroot/.nojekyll
       

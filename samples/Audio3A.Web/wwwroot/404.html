@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <title>Audio3A - 加载中...</title>
+    <script>
+        // GitHub Pages SPA redirect handler
+        // This script takes the current path and query string from the 404 page
+        // and redirects to the root page with the path as a query parameter
+        (function() {
+            var path = window.location.pathname;
+            var search = window.location.search;
+            var hash = window.location.hash;
+            
+            // Extract the base path (e.g., /Audio3A_CSharp/)
+            var segments = path.split('/').filter(function(segment) { return segment; });
+            var basePath = '/' + segments[0] + '/';
+            
+            // Get the route after the base path
+            var route = '';
+            if (segments.length > 1) {
+                route = '/' + segments.slice(1).join('/');
+            }
+            
+            // Redirect to index.html with the route preserved
+            var redirect = basePath + '?redirect=' + encodeURIComponent(route + search + hash);
+            window.location.replace(redirect);
+        })();
+    </script>
+</head>
+<body>
+    <p>加载中...</p>
+</body>
+</html>

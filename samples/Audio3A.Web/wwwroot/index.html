@@ -10,6 +10,18 @@
     <link rel="stylesheet" href="css/app.css" />
     <link rel="icon" type="image/png" href="favicon.png" />
     <link href="Audio3A.Web.styles.css" rel="stylesheet" />
+    <script>
+        // GitHub Pages SPA redirect handler
+        // Check if we have a redirect parameter from 404.html
+        (function() {
+            var query = window.location.search;
+            if (query && query.indexOf('?redirect=') === 0) {
+                var redirect = decodeURIComponent(query.substring(10));
+                // Use history.replaceState to restore the original URL without page reload
+                window.history.replaceState(null, null, redirect);
+            }
+        })();
+    </script>
 </head>
 
 <body>

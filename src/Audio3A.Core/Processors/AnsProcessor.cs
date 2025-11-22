@@ -16,10 +16,10 @@ public class AnsProcessor : IAudioProcessor
     
     // WebRTC-inspired enhancements
     private readonly float[] _noiseEstimate;
-    private readonly float[] _smoothedSpectrum;
     private readonly int _smoothingFrames = 20;
     private float _speechProbability;
     private readonly float _overSubtractionFactor = 2.0f;  // WebRTC uses over-subtraction
+    private static readonly Random _random = new Random();  // Static for better randomness
     
     /// <summary>
     /// Initializes a new ANS processor with WebRTC-inspired noise estimation
@@ -42,7 +42,6 @@ public class AnsProcessor : IAudioProcessor
         
         // Initialize WebRTC-inspired components
         _noiseEstimate = new float[_smoothingFrames];
-        _smoothedSpectrum = new float[_smoothingFrames];
         _speechProbability = 0.0f;
 
         _logger.LogDebug(
@@ -190,8 +189,8 @@ public class AnsProcessor : IAudioProcessor
     /// </summary>
     private float GenerateComfortNoise()
     {
-        // Simple pseudo-random noise
-        return (float)(2.0 * (new Random().NextDouble() - 0.5));
+        // Use static Random for better performance and randomness
+        return (float)(2.0 * (_random.NextDouble() - 0.5));
     }
 
     public void Reset()
@@ -201,6 +200,5 @@ public class AnsProcessor : IAudioProcessor
         _frameCount = 0;
         _speechProbability = 0.0f;
         Array.Clear(_noiseEstimate, 0, _noiseEstimate.Length);
-        Array.Clear(_smoothedSpectrum, 0, _smoothedSpectrum.Length);
     }
 }

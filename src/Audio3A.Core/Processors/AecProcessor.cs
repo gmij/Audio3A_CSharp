@@ -123,7 +123,7 @@ public class AecProcessor : IAudioProcessor
                     int idx = (_bufferPosition - k + _filterLength) % _filterLength;
                     _filterCoefficients[k] += mu * error * _referenceBuffer[idx];
                     // Prevent filter coefficients from growing unbounded
-                    _filterCoefficients[k] = Math.Max(-10.0f, Math.Min(10.0f, _filterCoefficients[k]));
+                    _filterCoefficients[k] = SignalProcessingHelpers.Clamp(_filterCoefficients[k], -10.0f, 10.0f);
                 }
             }
 
@@ -167,7 +167,7 @@ public class AecProcessor : IAudioProcessor
             float currentErl = 10.0f * (float)Math.Log10(micPower / (echoPower + 1e-10f));
             // Smooth ERL estimation
             _echoReturnLoss = 0.95f * _echoReturnLoss + 0.05f * currentErl;
-            _echoReturnLoss = Math.Max(0.0f, Math.Min(_echoReturnLoss, 50.0f));
+            _echoReturnLoss = SignalProcessingHelpers.Clamp(_echoReturnLoss, 0.0f, 50.0f);
         }
     }
     

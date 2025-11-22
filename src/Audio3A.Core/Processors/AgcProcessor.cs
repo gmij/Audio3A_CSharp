@@ -68,7 +68,7 @@ public class AgcProcessor : IAudioProcessor
         float[] output = new float[buffer.Length];
         
         // Calculate frame energy for VAD
-        float frameEnergy = CalculateFrameEnergy(buffer.Samples);
+        float frameEnergy = SignalProcessingHelpers.CalculateFrameEnergy(buffer.Samples);
         
         // Update noise floor estimation (WebRTC-inspired)
         UpdateNoiseFloor(frameEnergy);
@@ -110,27 +110,16 @@ public class AgcProcessor : IAudioProcessor
             // Smooth gain changes with adaptive smoothing
             float gainSmoothingFactor = isSpeech ? 0.02f : 0.005f;
             _currentGain += gainSmoothingFactor * (desiredGain - _currentGain);
-            _currentGain = Math.Max(_minGain, Math.Min(_currentGain, _maxGain));
+            _currentGain = SignalProcessingHelpers.Clamp(_currentGain, _minGain, _maxGain);
 
             // Apply gain with limiter
-            output[i] = ApplyGainWithLimiter(inputSample * _currentGain);
+            output[i] = SignalProcessingHelpers.SoftLimiter(inputSample * _currentGain);
         }
 
         return new AudioBuffer(output, buffer.Channels, buffer.SampleRate);
     }
     
-    /// <summary>
-    /// Calculate frame energy for VAD
-    /// </summary>
-    private float CalculateFrameEnergy(float[] samples)
-    {
-        float energy = 0.0f;
-        for (int i = 0; i < samples.Length; i++)
-        {
-            energy += samples[i] * samples[i];
-        }
-        return energy / samples.Length;
-    }
+
     
     /// <summary>
     /// Update noise floor estimation (WebRTC-inspired minimum statistics)
@@ -173,23 +162,7 @@ public class AgcProcessor : IAudioProcessor
         return _speechFrameCount > 3;
     }
     
-    /// <summary>
-    /// Apply gain with soft limiter to prevent clipping (WebRTC-inspired)
-    /// </summary>
-    private float ApplyGainWithLimiter(float sample)
-    {
-        // Soft clipping using tanh-like function
-        if (Math.Abs(sample) > 0.8f)
-        {
-            float sign = sample >= 0 ? 1.0f : -1.0f;
-            float absSample = Math.Abs(sample);
-            // Soft knee compression above 0.8
-            float compressed = 0.8f + 0.2f * (float)Math.Tanh((absSample - 0.8f) / 0.2f);
-            return sign * Math.Min(compressed, 1.0f);
-        }
-        
-        return Math.Max(-1.0f, Math.Min(1.0f, sample));
-    }
+
 
     public void Reset()
     {

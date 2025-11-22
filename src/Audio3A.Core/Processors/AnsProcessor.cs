@@ -54,16 +54,15 @@ public class AnsProcessor : IAudioProcessor
         float[] output = new float[buffer.Length];
 
         // Calculate signal energy and spectral characteristics
-        float signalEnergy = 0;
+        float signalEnergy = SignalProcessingHelpers.CalculateFrameEnergy(buffer.Samples);
         float zeroCrossings = 0;
         
-        for (int i = 0; i < buffer.Length; i++)
+        // Count zero crossings
+        for (int i = 1; i < buffer.Length; i++)
         {
-            signalEnergy += buffer.Samples[i] * buffer.Samples[i];
-            if (i > 0 && buffer.Samples[i] * buffer.Samples[i-1] < 0)
+            if (buffer.Samples[i] * buffer.Samples[i-1] < 0)
                 zeroCrossings++;
         }
-        signalEnergy /= buffer.Length;
         float zcr = zeroCrossings / buffer.Length;
 
         // Update noise estimation using WebRTC-inspired minimum statistics
@@ -73,7 +72,7 @@ public class AnsProcessor : IAudioProcessor
         _speechProbability = EstimateSpeechProbability(signalEnergy, zcr);
 
         // Calculate SNR
-        float snr = signalEnergy / (_noiseFloor + 1e-10f);
+        float snr = SignalProcessingHelpers.CalculateSnr(signalEnergy, _noiseFloor);
         
         // WebRTC-inspired spectral subtraction with over-subtraction
         float gain = CalculateSuppressionGain(snr, _speechProbability);
@@ -87,7 +86,7 @@ public class AnsProcessor : IAudioProcessor
             // Add minimal comfort noise during silence (WebRTC-inspired)
             if (_speechProbability < 0.3f)
             {
-                float comfortNoise = GenerateComfortNoise() * 0.001f;
+                float comfortNoise = SignalProcessingHelpers.GenerateComfortNoise(_random);
                 suppressedSample += comfortNoise;
             }
             
@@ -132,12 +131,11 @@ public class AnsProcessor : IAudioProcessor
     private float EstimateSpeechProbability(float signalEnergy, float zeroCrossingRate)
     {
         // Energy-based probability
-        float snr = signalEnergy / (_noiseFloor + 1e-10f);
-        float energyProb = Math.Min(1.0f, Math.Max(0.0f, (snr - 1.0f) / 5.0f));
+        float snr = SignalProcessingHelpers.CalculateSnr(signalEnergy, _noiseFloor);
+        float energyProb = SignalProcessingHelpers.Clamp((snr - 1.0f) / 5.0f, 0.0f, 1.0f);
         
         // Zero-crossing rate feature (speech typically has moderate ZCR)
-        float zcrProb = 1.0f - Math.Abs(zeroCrossingRate - 0.15f) / 0.15f;
-        zcrProb = Math.Max(0.0f, Math.Min(1.0f, zcrProb));
+        float zcrProb = SignalProcessingHelpers.Clamp(1.0f - Math.Abs(zeroCrossingRate - 0.15f) / 0.15f, 0.0f, 1.0f);
         
         // Combine features
         float probability = 0.7f * energyProb + 0.3f * zcrProb;
@@ -182,16 +180,7 @@ public class AnsProcessor : IAudioProcessor
         
         return Math.Min(1.0f, gain);
     }
-    
-    /// <summary>
-    /// Generate comfort noise (WebRTC-inspired)
-    /// Simple white noise generator for comfort noise injection
-    /// </summary>
-    private float GenerateComfortNoise()
-    {
-        // Use static Random for better performance and randomness
-        return (float)(2.0 * (_random.NextDouble() - 0.5));
-    }
+
 
     public void Reset()
     {

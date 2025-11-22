@@ -6,11 +6,8 @@ namespace Audio3A.Core.Processors;
 /// </summary>
 public class AnsProcessor : IAudioProcessor
 {
-    private readonly int _fftSize;
     private readonly int _sampleRate;
     private readonly float _noiseReductionDb;
-    private readonly float[] _noiseProfile;
-    private readonly float[] _smoothingBuffer;
     private float _noiseFloor;
     private int _frameCount;
 
@@ -18,32 +15,22 @@ public class AnsProcessor : IAudioProcessor
     /// Initializes a new ANS processor
     /// </summary>
     /// <param name="sampleRate">Sample rate in Hz</param>
-    /// <param name="fftSize">FFT size for frequency analysis</param>
+    /// <param name="fftSize">FFT size for frequency analysis (reserved for future use)</param>
     /// <param name="noiseReductionDb">Noise reduction strength in dB</param>
     public AnsProcessor(int sampleRate = 16000, int fftSize = 256, float noiseReductionDb = 20.0f)
     {
         _sampleRate = sampleRate;
-        _fftSize = fftSize;
         _noiseReductionDb = noiseReductionDb;
-        _noiseProfile = new float[fftSize / 2];
-        _smoothingBuffer = new float[fftSize / 2];
         _noiseFloor = 0.001f;
         _frameCount = 0;
-
-        // Initialize noise profile
-        for (int i = 0; i < _noiseProfile.Length; i++)
-        {
-            _noiseProfile[i] = _noiseFloor;
-        }
     }
 
     public AudioBuffer Process(AudioBuffer buffer)
     {
         float[] output = new float[buffer.Length];
 
-        // Simple spectral subtraction approach
-        // Process in frames
-        int hopSize = buffer.Length;
+        // Simple energy-based noise suppression
+        // Note: Future versions may implement FFT-based spectral subtraction
         
         // Calculate signal energy
         float signalEnergy = 0;
@@ -94,9 +81,5 @@ public class AnsProcessor : IAudioProcessor
     {
         _noiseFloor = 0.001f;
         _frameCount = 0;
-        for (int i = 0; i < _noiseProfile.Length; i++)
-        {
-            _noiseProfile[i] = _noiseFloor;
-        }
     }
 }

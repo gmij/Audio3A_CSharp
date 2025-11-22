@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 namespace Audio3A.Core.Processors;
 
 /// <summary>
@@ -6,6 +8,7 @@ namespace Audio3A.Core.Processors;
 /// </summary>
 public class AnsProcessor : IAudioProcessor
 {
+    private readonly ILogger<AnsProcessor> _logger;
     private readonly int _sampleRate;
     private readonly float _noiseReductionDb;
     private float _noiseFloor;
@@ -14,15 +17,25 @@ public class AnsProcessor : IAudioProcessor
     /// <summary>
     /// Initializes a new ANS processor
     /// </summary>
+    /// <param name="logger">Logger instance</param>
     /// <param name="sampleRate">Sample rate in Hz</param>
     /// <param name="fftSize">FFT size for frequency analysis (reserved for future use)</param>
     /// <param name="noiseReductionDb">Noise reduction strength in dB</param>
-    public AnsProcessor(int sampleRate = 16000, int fftSize = 256, float noiseReductionDb = 20.0f)
+    public AnsProcessor(
+        ILogger<AnsProcessor> logger,
+        int sampleRate = 16000,
+        int fftSize = 256,
+        float noiseReductionDb = 20.0f)
     {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _sampleRate = sampleRate;
         _noiseReductionDb = noiseReductionDb;
         _noiseFloor = 0.001f;
         _frameCount = 0;
+
+        _logger.LogDebug(
+            "ANS processor initialized: SampleRate={SampleRate}, NoiseReductionDb={NoiseReductionDb}",
+            sampleRate, noiseReductionDb);
     }
 
     public AudioBuffer Process(AudioBuffer buffer)
@@ -79,6 +92,7 @@ public class AnsProcessor : IAudioProcessor
 
     public void Reset()
     {
+        _logger.LogDebug("Resetting ANS processor state");
         _noiseFloor = 0.001f;
         _frameCount = 0;
     }

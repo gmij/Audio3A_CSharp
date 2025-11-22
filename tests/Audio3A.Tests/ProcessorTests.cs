@@ -10,7 +10,8 @@ public class ProcessorTests
     public void AgcProcessor_ReducesLoudSignals()
     {
         // Arrange
-        var processor = new AgcProcessor(sampleRate: 16000, targetLevel: 0.5f);
+        var logger = TestLoggerFactory.CreateNullLogger<AgcProcessor>();
+        var processor = new AgcProcessor(logger, sampleRate: 16000, targetLevel: 0.5f);
         float[] loudSamples = new float[160];
         for (int i = 0; i < loudSamples.Length; i++)
         {
@@ -34,7 +35,8 @@ public class ProcessorTests
     public void AgcProcessor_AmplifiesTooQuietSignals()
     {
         // Arrange
-        var processor = new AgcProcessor(sampleRate: 16000, targetLevel: 0.5f);
+        var logger = TestLoggerFactory.CreateNullLogger<AgcProcessor>();
+        var processor = new AgcProcessor(logger, sampleRate: 16000, targetLevel: 0.5f);
         float[] quietSamples = new float[160];
         for (int i = 0; i < quietSamples.Length; i++)
         {
@@ -58,7 +60,8 @@ public class ProcessorTests
     public void AnsProcessor_ReducesNoiseLevel()
     {
         // Arrange
-        var processor = new AnsProcessor(sampleRate: 16000, noiseReductionDb: 20.0f);
+        var logger = TestLoggerFactory.CreateNullLogger<AnsProcessor>();
+        var processor = new AnsProcessor(logger, sampleRate: 16000, noiseReductionDb: 20.0f);
         var random = new Random(42);
         float[] noisySamples = new float[160];
         for (int i = 0; i < noisySamples.Length; i++)
@@ -84,7 +87,8 @@ public class ProcessorTests
     public void AecProcessor_WithoutReference_PassThrough()
     {
         // Arrange
-        var processor = new AecProcessor(sampleRate: 16000);
+        var logger = TestLoggerFactory.CreateNullLogger<AecProcessor>();
+        var processor = new AecProcessor(logger, sampleRate: 16000);
         float[] samples = new float[160];
         for (int i = 0; i < samples.Length; i++)
         {
@@ -107,7 +111,8 @@ public class ProcessorTests
     public void AecProcessor_WithReference_ProcessesWithoutError()
     {
         // Arrange
-        var processor = new AecProcessor(sampleRate: 16000, filterLength: 256, stepSize: 0.001f);
+        var logger = TestLoggerFactory.CreateNullLogger<AecProcessor>();
+        var processor = new AecProcessor(logger, sampleRate: 16000, filterLength: 256, stepSize: 0.001f);
         
         // Create reference signal (speaker output)
         float[] referenceSamples = new float[160];
@@ -148,9 +153,13 @@ public class ProcessorTests
     public void AllProcessors_Reset_ClearsState()
     {
         // Arrange
-        var agc = new AgcProcessor();
-        var ans = new AnsProcessor();
-        var aec = new AecProcessor();
+        var agcLogger = TestLoggerFactory.CreateNullLogger<AgcProcessor>();
+        var ansLogger = TestLoggerFactory.CreateNullLogger<AnsProcessor>();
+        var aecLogger = TestLoggerFactory.CreateNullLogger<AecProcessor>();
+        
+        var agc = new AgcProcessor(agcLogger);
+        var ans = new AnsProcessor(ansLogger);
+        var aec = new AecProcessor(aecLogger);
 
         float[] samples = new float[160];
         var buffer = new AudioBuffer(samples);

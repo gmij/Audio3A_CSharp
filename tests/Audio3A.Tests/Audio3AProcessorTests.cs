@@ -1,15 +1,46 @@
 using Audio3A.Core;
+using Audio3A.Core.Processors;
 using Xunit;
 
 namespace Audio3A.Tests;
 
 public class Audio3AProcessorTests
 {
+    private Audio3AProcessor CreateTestProcessor(Audio3AConfig? config = null)
+    {
+        config ??= new Audio3AConfig();
+        var logger = TestLoggerFactory.CreateNullLogger<Audio3AProcessor>();
+        
+        AecProcessor? aec = null;
+        AgcProcessor? agc = null;
+        AnsProcessor? ans = null;
+        
+        if (config.EnableAec)
+        {
+            var aecLogger = TestLoggerFactory.CreateNullLogger<AecProcessor>();
+            aec = new AecProcessor(aecLogger, config.SampleRate, config.AecFilterLength, config.AecStepSize);
+        }
+        
+        if (config.EnableAgc)
+        {
+            var agcLogger = TestLoggerFactory.CreateNullLogger<AgcProcessor>();
+            agc = new AgcProcessor(agcLogger, config.SampleRate, config.AgcTargetLevel, config.AgcCompressionRatio);
+        }
+        
+        if (config.EnableAns)
+        {
+            var ansLogger = TestLoggerFactory.CreateNullLogger<AnsProcessor>();
+            ans = new AnsProcessor(ansLogger, config.SampleRate, noiseReductionDb: config.AnsNoiseReductionDb);
+        }
+        
+        return new Audio3AProcessor(logger, config, aec, agc, ans);
+    }
+
     [Fact]
     public void Constructor_WithDefaultConfig_CreatesProcessor()
     {
         // Act
-        using var processor = new Audio3AProcessor();
+        using var processor = CreateTestProcessor();
 
         // Assert
         Assert.NotNull(processor);
@@ -32,7 +63,7 @@ public class Audio3AProcessorTests
         };
 
         // Act
-        using var processor = new Audio3AProcessor(config);
+        using var processor = CreateTestProcessor(config);
 
         // Assert
         Assert.False(processor.Config.EnableAec);
@@ -45,7 +76,7 @@ public class Audio3AProcessorTests
     public void Process_WithValidBuffer_ReturnsProcessedBuffer()
     {
         // Arrange
-        using var processor = new Audio3AProcessor();
+        using var processor = CreateTestProcessor();
         float[] samples = new float[160];
         for (int i = 0; i < samples.Length; i++)
         {
@@ -65,7 +96,7 @@ public class Audio3AProcessorTests
     public void Process_WithReference_ProcessesWithAec()
     {
         // Arrange
-        using var processor = new Audio3AProcessor();
+        using var processor = CreateTestProcessor();
         float[] micSamples = new float[160];
         float[] refSamples = new float[160];
         
@@ -90,7 +121,7 @@ public class Audio3AProcessorTests
     public void ProcessInt16_WithPcmData_ReturnsProcessedPcm()
     {
         // Arrange
-        using var processor = new Audio3AProcessor();
+        using var processor = CreateTestProcessor();
         short[] pcmData = new short[160];
         for (int i = 0; i < pcmData.Length; i++)
         {
@@ -109,7 +140,7 @@ public class Audio3AProcessorTests
     public void ProcessInt16_WithReference_ProcessesWithAec()
     {
         // Arrange
-        using var processor = new Audio3AProcessor();
+        using var processor = CreateTestProcessor();
         short[] micPcm = new short[160];
         short[] refPcm = new short[160];
 
@@ -125,7 +156,7 @@ public class Audio3AProcessorTests
     public void Reset_ClearsProcessorState()
     {
         // Arrange
-        using var processor = new Audio3AProcessor();
+        using var processor = CreateTestProcessor();
         var buffer = new AudioBuffer(new float[160]);
         processor.Process(buffer);
 
@@ -141,7 +172,7 @@ public class Audio3AProcessorTests
     public void Dispose_CanBeCalledMultipleTimes()
     {
         // Arrange
-        var processor = new Audio3AProcessor();
+        var processor = CreateTestProcessor();
 
         // Act & Assert - should not throw
         processor.Dispose();
@@ -152,7 +183,7 @@ public class Audio3AProcessorTests
     public void Process_AfterDispose_ThrowsObjectDisposedException()
     {
         // Arrange
-        var processor = new Audio3AProcessor();
+        var processor = CreateTestProcessor();
         var buffer = new AudioBuffer(new float[160]);
         processor.Dispose();
 
@@ -170,7 +201,7 @@ public class Audio3AProcessorTests
             EnableAgc = false,
             EnableAns = false
         };
-        using var processor = new Audio3AProcessor(config);
+        using var processor = CreateTestProcessor(config);
         var buffer = new AudioBuffer(new float[160]);
 
         // Act

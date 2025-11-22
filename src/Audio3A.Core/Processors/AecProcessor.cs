@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 namespace Audio3A.Core.Processors;
 
 /// <summary>
@@ -6,6 +8,7 @@ namespace Audio3A.Core.Processors;
 /// </summary>
 public class AecProcessor : IAudioProcessor
 {
+    private readonly ILogger<AecProcessor> _logger;
     private readonly int _filterLength;
     private readonly float _stepSize;
     private readonly float[] _filterCoefficients;
@@ -16,17 +19,27 @@ public class AecProcessor : IAudioProcessor
     /// <summary>
     /// Initializes a new AEC processor
     /// </summary>
+    /// <param name="logger">Logger instance</param>
     /// <param name="sampleRate">Sample rate in Hz</param>
     /// <param name="filterLength">Adaptive filter length (tail length in samples)</param>
     /// <param name="stepSize">Adaptation step size (learning rate)</param>
-    public AecProcessor(int sampleRate = 16000, int filterLength = 512, float stepSize = 0.01f)
+    public AecProcessor(
+        ILogger<AecProcessor> logger,
+        int sampleRate = 16000,
+        int filterLength = 512,
+        float stepSize = 0.01f)
     {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _sampleRate = sampleRate;
         _filterLength = filterLength;
         _stepSize = stepSize;
         _filterCoefficients = new float[filterLength];
         _referenceBuffer = new float[filterLength];
         _bufferPosition = 0;
+
+        _logger.LogDebug(
+            "AEC processor initialized: SampleRate={SampleRate}, FilterLength={FilterLength}, StepSize={StepSize}",
+            sampleRate, filterLength, stepSize);
     }
 
     /// <summary>
@@ -104,6 +117,7 @@ public class AecProcessor : IAudioProcessor
 
     public void Reset()
     {
+        _logger.LogDebug("Resetting AEC processor state");
         Array.Clear(_filterCoefficients, 0, _filterLength);
         Array.Clear(_referenceBuffer, 0, _filterLength);
         _bufferPosition = 0;

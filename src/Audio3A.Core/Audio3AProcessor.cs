@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Audio3A.Core.Processors;
 
 namespace Audio3A.Core;
@@ -7,6 +8,7 @@ namespace Audio3A.Core;
 /// </summary>
 public class Audio3AProcessor : IDisposable
 {
+    private readonly ILogger<Audio3AProcessor> _logger;
     private readonly Audio3AConfig _config;
     private readonly AecProcessor? _aecProcessor;
     private readonly AgcProcessor? _agcProcessor;
@@ -14,36 +16,31 @@ public class Audio3AProcessor : IDisposable
     private bool _disposed;
 
     /// <summary>
-    /// Initializes a new Audio3A processor with the specified configuration
+    /// Initializes a new Audio3A processor with dependency injection
     /// </summary>
+    /// <param name="logger">Logger instance</param>
     /// <param name="config">Configuration for 3A processing</param>
-    public Audio3AProcessor(Audio3AConfig? config = null)
+    /// <param name="aecProcessor">AEC processor (injected)</param>
+    /// <param name="agcProcessor">AGC processor (injected)</param>
+    /// <param name="ansProcessor">ANS processor (injected)</param>
+    public Audio3AProcessor(
+        ILogger<Audio3AProcessor> logger,
+        Audio3AConfig config,
+        AecProcessor? aecProcessor = null,
+        AgcProcessor? agcProcessor = null,
+        AnsProcessor? ansProcessor = null)
     {
-        _config = config ?? new Audio3AConfig();
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _config = config ?? throw new ArgumentNullException(nameof(config));
 
-        // Initialize enabled processors
-        if (_config.EnableAec)
-        {
-            _aecProcessor = new AecProcessor(
-                _config.SampleRate,
-                _config.AecFilterLength,
-                _config.AecStepSize);
-        }
+        // Use injected processors only if enabled in config
+        _aecProcessor = _config.EnableAec ? aecProcessor : null;
+        _agcProcessor = _config.EnableAgc ? agcProcessor : null;
+        _ansProcessor = _config.EnableAns ? ansProcessor : null;
 
-        if (_config.EnableAgc)
-        {
-            _agcProcessor = new AgcProcessor(
-                _config.SampleRate,
-                _config.AgcTargetLevel,
-                _config.AgcCompressionRatio);
-        }
-
-        if (_config.EnableAns)
-        {
-            _ansProcessor = new AnsProcessor(
-                _config.SampleRate,
-                noiseReductionDb: _config.AnsNoiseReductionDb);
-        }
+        _logger.LogInformation(
+            "Audio3A processor initialized: AEC={AecEnabled}, AGC={AgcEnabled}, ANS={AnsEnabled}, SampleRate={SampleRate}",
+            _config.EnableAec, _config.EnableAgc, _config.EnableAns, _config.SampleRate);
     }
 
     /// <summary>
@@ -59,23 +56,28 @@ public class Audio3AProcessor : IDisposable
             throw new ObjectDisposedException(nameof(Audio3AProcessor));
         }
 
+        _logger.LogTrace("Processing audio buffer: Length={Length} samples", micInput.Length);
+
         AudioBuffer current = micInput;
 
         // Apply AEC first to remove echo
         if (_aecProcessor != null)
         {
+            _logger.LogTrace("Applying AEC processing");
             current = _aecProcessor.Process(current, speakerReference);
         }
 
         // Apply ANS to remove noise
         if (_ansProcessor != null)
         {
+            _logger.LogTrace("Applying ANS processing");
             current = _ansProcessor.Process(current);
         }
 
         // Apply AGC last to normalize volume
         if (_agcProcessor != null)
         {
+            _logger.LogTrace("Applying AGC processing");
             current = _agcProcessor.Process(current);
         }
 
@@ -104,6 +106,7 @@ public class Audio3AProcessor : IDisposable
     /// </summary>
     public void Reset()
     {
+        _logger.LogDebug("Resetting all processors");
         _aecProcessor?.Reset();
         _agcProcessor?.Reset();
         _ansProcessor?.Reset();
@@ -118,6 +121,7 @@ public class Audio3AProcessor : IDisposable
     {
         if (!_disposed)
         {
+            _logger.LogDebug("Disposing Audio3A processor");
             Reset();
             _disposed = true;
         }

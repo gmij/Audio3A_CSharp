@@ -86,7 +86,7 @@
             if (response.IsSuccessStatusCode)
             {
                 await Message.Success("房间创建成功！");
-                Navigation.NavigateTo("rooms");
+                Navigation.NavigateTo(Navigation.ToAbsoluteUri("rooms").ToString(), forceLoad: false);
             }
             else
             {
@@ -105,6 +105,6 @@
 
     private void GoBack()
     {
-        Navigation.NavigateTo("rooms");
+        Navigation.NavigateTo(Navigation.ToAbsoluteUri("rooms").ToString(), forceLoad: false);
     }
 }

@@ -23,38 +23,47 @@ public static class ServiceCollectionExtensions
         configureOptions?.Invoke(config);
         services.AddSingleton(config);
 
-        // Register processors as scoped services
-        services.AddScoped<AecProcessor>(sp =>
+        // Conditionally register processors as scoped services based on configuration
+        if (config.EnableAec)
         {
-            var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<AecProcessor>>();
-            var cfg = sp.GetRequiredService<Audio3AConfig>();
-            return new AecProcessor(
-                logger,
-                cfg.SampleRate,
-                cfg.AecFilterLength,
-                cfg.AecStepSize);
-        });
+            services.AddScoped<AecProcessor>(sp =>
+            {
+                var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<AecProcessor>>();
+                var cfg = sp.GetRequiredService<Audio3AConfig>();
+                return new AecProcessor(
+                    logger,
+                    cfg.SampleRate,
+                    cfg.AecFilterLength,
+                    cfg.AecStepSize);
+            });
+        }
 
-        services.AddScoped<AgcProcessor>(sp =>
+        if (config.EnableAgc)
         {
-            var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<AgcProcessor>>();
-            var cfg = sp.GetRequiredService<Audio3AConfig>();
-            return new AgcProcessor(
-                logger,
-                cfg.SampleRate,
-                cfg.AgcTargetLevel,
-                cfg.AgcCompressionRatio);
-        });
+            services.AddScoped<AgcProcessor>(sp =>
+            {
+                var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<AgcProcessor>>();
+                var cfg = sp.GetRequiredService<Audio3AConfig>();
+                return new AgcProcessor(
+                    logger,
+                    cfg.SampleRate,
+                    cfg.AgcTargetLevel,
+                    cfg.AgcCompressionRatio);
+            });
+        }
 
-        services.AddScoped<AnsProcessor>(sp =>
+        if (config.EnableAns)
         {
-            var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<AnsProcessor>>();
-            var cfg = sp.GetRequiredService<Audio3AConfig>();
-            return new AnsProcessor(
-                logger,
-                cfg.SampleRate,
-                noiseReductionDb: cfg.AnsNoiseReductionDb);
-        });
+            services.AddScoped<AnsProcessor>(sp =>
+            {
+                var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<AnsProcessor>>();
+                var cfg = sp.GetRequiredService<Audio3AConfig>();
+                return new AnsProcessor(
+                    logger,
+                    cfg.SampleRate,
+                    noiseReductionDb: cfg.AnsNoiseReductionDb);
+            });
+        }
 
         // Register main processor
         services.AddScoped<Audio3AProcessor>();

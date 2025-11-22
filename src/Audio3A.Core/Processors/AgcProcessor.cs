@@ -66,16 +66,10 @@ public class AgcProcessor : IAudioProcessor
             if (_envelopeLevel > 0.001f)
             {
                 float levelDiff = _targetLevel / _envelopeLevel;
-                if (levelDiff < 1.0f)
-                {
-                    // Compression
-                    desiredGain = (float)Math.Pow(levelDiff, 1.0 / _compressionRatio);
-                }
-                else
-                {
-                    // Expansion (limited)
-                    desiredGain = Math.Min(levelDiff, 4.0f);
-                }
+                // Compression or expansion
+                desiredGain = levelDiff < 1.0f
+                    ? (float)Math.Pow(levelDiff, 1.0 / _compressionRatio)  // Compression
+                    : Math.Min(levelDiff, 4.0f);  // Expansion (limited)
             }
 
             // Smooth gain changes

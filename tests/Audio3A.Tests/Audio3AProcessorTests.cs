@@ -1,5 +1,6 @@
 using Audio3A.Core;
 using Audio3A.Core.Processors;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace Audio3A.Tests;
@@ -9,31 +10,35 @@ public class Audio3AProcessorTests
     private Audio3AProcessor CreateTestProcessor(Audio3AConfig? config = null)
     {
         config ??= new Audio3AConfig();
-        var logger = TestLoggerFactory.CreateNullLogger<Audio3AProcessor>();
         
-        AecProcessor? aec = null;
-        AgcProcessor? agc = null;
-        AnsProcessor? ans = null;
+        // Create a service collection and register services
+        var services = new ServiceCollection();
+        services.AddSingleton(config);
+        services.AddSingleton(TestLoggerFactory.CreateNullLogger<Audio3AProcessor>());
         
+        // Register processors based on config
         if (config.EnableAec)
         {
             var aecLogger = TestLoggerFactory.CreateNullLogger<AecProcessor>();
-            aec = new AecProcessor(aecLogger, config.SampleRate, config.AecFilterLength, config.AecStepSize);
+            services.AddScoped<AecProcessor>(sp => new AecProcessor(aecLogger, config.SampleRate, config.AecFilterLength, config.AecStepSize));
         }
         
         if (config.EnableAgc)
         {
             var agcLogger = TestLoggerFactory.CreateNullLogger<AgcProcessor>();
-            agc = new AgcProcessor(agcLogger, config.SampleRate, config.AgcTargetLevel, config.AgcCompressionRatio);
+            services.AddScoped<AgcProcessor>(sp => new AgcProcessor(agcLogger, config.SampleRate, config.AgcTargetLevel, config.AgcCompressionRatio));
         }
         
         if (config.EnableAns)
         {
             var ansLogger = TestLoggerFactory.CreateNullLogger<AnsProcessor>();
-            ans = new AnsProcessor(ansLogger, config.SampleRate, noiseReductionDb: config.AnsNoiseReductionDb);
+            services.AddScoped<AnsProcessor>(sp => new AnsProcessor(ansLogger, config.SampleRate, noiseReductionDb: config.AnsNoiseReductionDb));
         }
         
-        return new Audio3AProcessor(logger, config, aec, agc, ans);
+        var serviceProvider = services.BuildServiceProvider();
+        var logger = serviceProvider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Audio3AProcessor>>();
+        
+        return new Audio3AProcessor(logger, config, serviceProvider);
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 using Audio3A.Core.Processors;
 
 namespace Audio3A.Core;
@@ -20,23 +21,30 @@ public class Audio3AProcessor : IDisposable
     /// </summary>
     /// <param name="logger">Logger instance</param>
     /// <param name="config">Configuration for 3A processing</param>
-    /// <param name="aecProcessor">AEC processor (injected)</param>
-    /// <param name="agcProcessor">AGC processor (injected)</param>
-    /// <param name="ansProcessor">ANS processor (injected)</param>
+    /// <param name="serviceProvider">Service provider for resolving optional processors</param>
     public Audio3AProcessor(
         ILogger<Audio3AProcessor> logger,
         Audio3AConfig config,
-        AecProcessor? aecProcessor = null,
-        AgcProcessor? agcProcessor = null,
-        AnsProcessor? ansProcessor = null)
+        IServiceProvider serviceProvider)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _config = config ?? throw new ArgumentNullException(nameof(config));
 
-        // Use injected processors only if enabled in config
-        _aecProcessor = _config.EnableAec ? aecProcessor : null;
-        _agcProcessor = _config.EnableAgc ? agcProcessor : null;
-        _ansProcessor = _config.EnableAns ? ansProcessor : null;
+        // Resolve processors from DI container only if enabled in config
+        if (_config.EnableAec)
+        {
+            _aecProcessor = serviceProvider.GetService<AecProcessor>();
+        }
+
+        if (_config.EnableAgc)
+        {
+            _agcProcessor = serviceProvider.GetService<AgcProcessor>();
+        }
+
+        if (_config.EnableAns)
+        {
+            _ansProcessor = serviceProvider.GetService<AnsProcessor>();
+        }
 
         _logger.LogInformation(
             "Audio3A processor initialized: AEC={AecEnabled}, AGC={AgcEnabled}, ANS={AnsEnabled}, SampleRate={SampleRate}",

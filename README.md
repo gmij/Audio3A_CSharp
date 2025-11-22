@@ -92,7 +92,7 @@ var outputBuffer = processor.Process(inputBuffer);
 using Audio3A.Core;
 using Audio3A.Core.Processors;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 
 // 创建配置
 var config = new Audio3AConfig
@@ -103,19 +103,41 @@ var config = new Audio3AConfig
     SampleRate = 16000
 };
 
-// 创建日志记录器（或使用 NullLogger 禁用日志）
+// 创建服务集合和提供程序
+var services = new ServiceCollection();
+services.AddSingleton(config);
+
+// 创建日志记录器
 var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
-var logger = loggerFactory.CreateLogger<Audio3AProcessor>();
-var aecLogger = loggerFactory.CreateLogger<AecProcessor>();
-var agcLogger = loggerFactory.CreateLogger<AgcProcessor>();
-var ansLogger = loggerFactory.CreateLogger<AnsProcessor>();
+services.AddSingleton(loggerFactory.CreateLogger<Audio3AProcessor>());
+
+// 注册处理器（带日志记录器）
+if (config.EnableAec)
+{
+    var aecLogger = loggerFactory.CreateLogger<AecProcessor>();
+    services.AddScoped<AecProcessor>(sp => 
+        new AecProcessor(aecLogger, config.SampleRate, config.AecFilterLength, config.AecStepSize));
+}
+
+if (config.EnableAgc)
+{
+    var agcLogger = loggerFactory.CreateLogger<AgcProcessor>();
+    services.AddScoped<AgcProcessor>(sp => 
+        new AgcProcessor(agcLogger, config.SampleRate, config.AgcTargetLevel, config.AgcCompressionRatio));
+}
+
+if (config.EnableAns)
+{
+    var ansLogger = loggerFactory.CreateLogger<AnsProcessor>();
+    services.AddScoped<AnsProcessor>(sp => 
+        new AnsProcessor(ansLogger, config.SampleRate, noiseReductionDb: config.AnsNoiseReductionDb));
+}
+
+var serviceProvider = services.BuildServiceProvider();
+var logger = serviceProvider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Audio3AProcessor>>();
 
 // 创建处理器
-var aec = new AecProcessor(aecLogger, config.SampleRate, config.AecFilterLength, config.AecStepSize);
-var agc = new AgcProcessor(agcLogger, config.SampleRate, config.AgcTargetLevel, config.AgcCompressionRatio);
-var ans = new AnsProcessor(ansLogger, config.SampleRate, noiseReductionDb: config.AnsNoiseReductionDb);
-
-using var processor = new Audio3AProcessor(logger, config, aec, agc, ans);
+using var processor = new Audio3AProcessor(logger, config, serviceProvider);
 
 // 处理音频
 var inputBuffer = new AudioBuffer(new float[160]);
@@ -152,17 +174,6 @@ short[] outputPcm = processor.ProcessInt16(inputPcm);
 ```
 
 ### 4. 使用回声消除（带参考信号）
-
-```csharp
-using Audio3A.Core;
-
-using var processor = new Audio3AProcessor();
-
-// 麦克风输入
-short[] micInputPcm = new short[160];
-
-// 扬声器参考信号（播放的音频）
-short[] speakerReferencePcm = new short[160];
 
 ```csharp
 using Audio3A.Core.Extensions;

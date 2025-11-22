@@ -4,7 +4,7 @@ namespace Audio3A.Core.Processors;
 
 /// <summary>
 /// Automatic Gain Control (AGC) processor
-/// Automatically adjusts audio volume to maintain consistent output level
+/// WebRTC-inspired implementation with Voice Activity Detection and adaptive gain control
 /// </summary>
 public class AgcProcessor : IAudioProcessor
 {
@@ -16,9 +16,18 @@ public class AgcProcessor : IAudioProcessor
     private float _currentGain;
     private float _envelopeLevel;
     private readonly int _sampleRate;
+    
+    // WebRTC-inspired VAD and digital gain control
+    private readonly float[] _energyHistory;
+    private int _energyHistoryPos;
+    private float _noiseFloor;
+    private readonly float _vadThreshold = 0.03f;
+    private int _speechFrameCount;
+    private readonly float _minGain = 0.1f;
+    private readonly float _maxGain = 30.0f;  // WebRTC allows higher gain
 
     /// <summary>
-    /// Initializes a new AGC processor
+    /// Initializes a new AGC processor with WebRTC-inspired VAD
     /// </summary>
     /// <param name="logger">Logger instance</param>
     /// <param name="sampleRate">Sample rate in Hz</param>
@@ -42,6 +51,12 @@ public class AgcProcessor : IAudioProcessor
         _releaseTime = 1.0f - (float)Math.Exp(-1.0 / (sampleRate * releaseTimeMs / 1000.0));
         _currentGain = 1.0f;
         _envelopeLevel = 0.0f;
+        
+        // Initialize VAD components
+        _energyHistory = new float[50];
+        _energyHistoryPos = 0;
+        _noiseFloor = 0.001f;
+        _speechFrameCount = 0;
 
         _logger.LogDebug(
             "AGC processor initialized: SampleRate={SampleRate}, TargetLevel={TargetLevel}, CompressionRatio={CompressionRatio}",
@@ -51,37 +66,129 @@ public class AgcProcessor : IAudioProcessor
     public AudioBuffer Process(AudioBuffer buffer)
     {
         float[] output = new float[buffer.Length];
+        
+        // Calculate frame energy for VAD
+        float frameEnergy = CalculateFrameEnergy(buffer.Samples);
+        
+        // Update noise floor estimation (WebRTC-inspired)
+        UpdateNoiseFloor(frameEnergy);
+        
+        // Voice Activity Detection
+        bool isSpeech = DetectVoiceActivity(frameEnergy);
 
         for (int i = 0; i < buffer.Length; i++)
         {
             float inputSample = buffer.Samples[i];
             float absLevel = Math.Abs(inputSample);
 
-            // Envelope follower
-            float coefficient = absLevel > _envelopeLevel ? _attackTime : _releaseTime;
+            // Envelope follower with VAD-aware time constants
+            float attackCoeff = isSpeech ? _attackTime : _attackTime * 0.5f;
+            float releaseCoeff = isSpeech ? _releaseTime : _releaseTime * 2.0f;
+            float coefficient = absLevel > _envelopeLevel ? attackCoeff : releaseCoeff;
             _envelopeLevel += coefficient * (absLevel - _envelopeLevel);
 
-            // Calculate desired gain
+            // Calculate desired gain with VAD consideration
             float desiredGain = 1.0f;
-            if (_envelopeLevel > 0.001f)
+            if (_envelopeLevel > _noiseFloor)
             {
                 float levelDiff = _targetLevel / _envelopeLevel;
-                // Compression or expansion
-                desiredGain = levelDiff < 1.0f
-                    ? (float)Math.Pow(levelDiff, 1.0 / _compressionRatio)  // Compression
-                    : Math.Min(levelDiff, 4.0f);  // Expansion (limited)
+                
+                if (isSpeech)
+                {
+                    // During speech: apply compression/expansion
+                    desiredGain = levelDiff < 1.0f
+                        ? (float)Math.Pow(levelDiff, 1.0 / _compressionRatio)  // Compression
+                        : Math.Min(levelDiff, _maxGain);  // Expansion (WebRTC allows higher gain)
+                }
+                else
+                {
+                    // During silence: gentle gain adjustment to avoid amplifying noise
+                    desiredGain = Math.Min(levelDiff, 2.0f);
+                }
             }
 
-            // Smooth gain changes
-            _currentGain += 0.01f * (desiredGain - _currentGain);
-            _currentGain = Math.Max(0.1f, Math.Min(_currentGain, 10.0f));
+            // Smooth gain changes with adaptive smoothing
+            float gainSmoothingFactor = isSpeech ? 0.02f : 0.005f;
+            _currentGain += gainSmoothingFactor * (desiredGain - _currentGain);
+            _currentGain = Math.Max(_minGain, Math.Min(_currentGain, _maxGain));
 
-            // Apply gain
-            output[i] = inputSample * _currentGain;
-            output[i] = Math.Max(-1.0f, Math.Min(1.0f, output[i]));
+            // Apply gain with limiter
+            output[i] = ApplyGainWithLimiter(inputSample * _currentGain);
         }
 
         return new AudioBuffer(output, buffer.Channels, buffer.SampleRate);
+    }
+    
+    /// <summary>
+    /// Calculate frame energy for VAD
+    /// </summary>
+    private float CalculateFrameEnergy(float[] samples)
+    {
+        float energy = 0.0f;
+        for (int i = 0; i < samples.Length; i++)
+        {
+            energy += samples[i] * samples[i];
+        }
+        return energy / samples.Length;
+    }
+    
+    /// <summary>
+    /// Update noise floor estimation (WebRTC-inspired minimum statistics)
+    /// </summary>
+    private void UpdateNoiseFloor(float frameEnergy)
+    {
+        _energyHistory[_energyHistoryPos] = frameEnergy;
+        _energyHistoryPos = (_energyHistoryPos + 1) % _energyHistory.Length;
+        
+        // Estimate noise floor as minimum of recent energy values
+        float minEnergy = float.MaxValue;
+        for (int i = 0; i < _energyHistory.Length; i++)
+        {
+            if (_energyHistory[i] < minEnergy)
+                minEnergy = _energyHistory[i];
+        }
+        
+        // Smooth noise floor update
+        _noiseFloor = 0.95f * _noiseFloor + 0.05f * (minEnergy + 0.001f);
+    }
+    
+    /// <summary>
+    /// Voice Activity Detection (WebRTC-inspired energy-based VAD)
+    /// </summary>
+    private bool DetectVoiceActivity(float frameEnergy)
+    {
+        // Simple energy-based VAD with hysteresis
+        float snr = frameEnergy / (_noiseFloor + 1e-10f);
+        
+        if (snr > _vadThreshold)
+        {
+            _speechFrameCount = Math.Min(_speechFrameCount + 1, 10);
+        }
+        else
+        {
+            _speechFrameCount = Math.Max(_speechFrameCount - 1, 0);
+        }
+        
+        // Require multiple frames for speech decision (hysteresis)
+        return _speechFrameCount > 3;
+    }
+    
+    /// <summary>
+    /// Apply gain with soft limiter to prevent clipping (WebRTC-inspired)
+    /// </summary>
+    private float ApplyGainWithLimiter(float sample)
+    {
+        // Soft clipping using tanh-like function
+        if (Math.Abs(sample) > 0.8f)
+        {
+            float sign = sample >= 0 ? 1.0f : -1.0f;
+            float absSample = Math.Abs(sample);
+            // Soft knee compression above 0.8
+            float compressed = 0.8f + 0.2f * (float)Math.Tanh((absSample - 0.8f) / 0.2f);
+            return sign * Math.Min(compressed, 1.0f);
+        }
+        
+        return Math.Max(-1.0f, Math.Min(1.0f, sample));
     }
 
     public void Reset()
@@ -89,5 +196,9 @@ public class AgcProcessor : IAudioProcessor
         _logger.LogDebug("Resetting AGC processor state");
         _currentGain = 1.0f;
         _envelopeLevel = 0.0f;
+        Array.Clear(_energyHistory, 0, _energyHistory.Length);
+        _energyHistoryPos = 0;
+        _noiseFloor = 0.001f;
+        _speechFrameCount = 0;
     }
 }

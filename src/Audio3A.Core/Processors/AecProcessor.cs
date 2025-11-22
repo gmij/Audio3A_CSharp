@@ -4,7 +4,7 @@ namespace Audio3A.Core.Processors;
 
 /// <summary>
 /// Acoustic Echo Cancellation (AEC) processor
-/// Removes acoustic echo from the microphone signal caused by speaker playback
+/// WebRTC-inspired implementation with improved echo suppression and double-talk detection
 /// </summary>
 public class AecProcessor : IAudioProcessor
 {
@@ -15,9 +15,15 @@ public class AecProcessor : IAudioProcessor
     private readonly float[] _referenceBuffer;
     private int _bufferPosition;
     private readonly int _sampleRate;
-
+    
+    // WebRTC-inspired enhancements
+    private readonly float[] _errorHistory;
+    private int _errorHistoryPos;
+    private float _echoReturnLoss;
+    private readonly float _dtdThreshold = 0.3f;  // Double-talk detection threshold
+    
     /// <summary>
-    /// Initializes a new AEC processor
+    /// Initializes a new AEC processor with WebRTC-inspired improvements
     /// </summary>
     /// <param name="logger">Logger instance</param>
     /// <param name="sampleRate">Sample rate in Hz</param>
@@ -36,6 +42,11 @@ public class AecProcessor : IAudioProcessor
         _filterCoefficients = new float[filterLength];
         _referenceBuffer = new float[filterLength];
         _bufferPosition = 0;
+        
+        // Initialize enhancement features
+        _errorHistory = new float[100];
+        _errorHistoryPos = 0;
+        _echoReturnLoss = 0.0f;
 
         _logger.LogDebug(
             "AEC processor initialized: SampleRate={SampleRate}, FilterLength={FilterLength}, StepSize={StepSize}",
@@ -43,7 +54,7 @@ public class AecProcessor : IAudioProcessor
     }
 
     /// <summary>
-    /// Process audio with echo cancellation
+    /// Process audio with enhanced echo cancellation using WebRTC-inspired techniques
     /// </summary>
     /// <param name="buffer">Microphone input buffer</param>
     /// <param name="reference">Speaker reference signal (null if not available)</param>
@@ -77,26 +88,49 @@ public class AecProcessor : IAudioProcessor
 
             // Calculate error (mic signal minus echo estimate)
             float error = buffer.Samples[n] - echoEstimate;
-            output[n] = error;
+            
+            // Double-talk detection (WebRTC-inspired)
+            float micPower = buffer.Samples[n] * buffer.Samples[n];
+            float refPower = reference.Samples[n] * reference.Samples[n];
+            bool isDoubleTalk = DetectDoubleTalk(micPower, refPower, error * error);
+            
+            // Update Echo Return Loss (ERL) estimation
+            UpdateEchoReturnLoss(micPower, echoEstimate * echoEstimate);
+            
+            // Apply non-linear processing for residual echo suppression
+            float suppressedError = ApplyNonLinearSuppression(error, echoEstimate, isDoubleTalk);
+            output[n] = suppressedError;
 
-            // Update filter coefficients (NLMS algorithm)
-            float power = 0.0f;
-            for (int k = 0; k < _filterLength; k++)
+            // Update filter coefficients (NLMS algorithm with double-talk handling)
+            if (!isDoubleTalk)
             {
-                int idx = (_bufferPosition - k + _filterLength) % _filterLength;
-                power += _referenceBuffer[idx] * _referenceBuffer[idx];
-            }
-            power = power / _filterLength + 1e-6f;
+                // Calculate normalized power
+                float power = 0.0f;
+                for (int k = 0; k < _filterLength; k++)
+                {
+                    int idx = (_bufferPosition - k + _filterLength) % _filterLength;
+                    power += _referenceBuffer[idx] * _referenceBuffer[idx];
+                }
+                power = power / _filterLength + 1e-6f;
 
-            float mu = _stepSize / power;
-            for (int k = 0; k < _filterLength; k++)
-            {
-                int idx = (_bufferPosition - k + _filterLength) % _filterLength;
-                _filterCoefficients[k] += mu * error * _referenceBuffer[idx];
-                // Prevent filter coefficients from growing unbounded
-                _filterCoefficients[k] = Math.Max(-10.0f, Math.Min(10.0f, _filterCoefficients[k]));
+                float mu = _stepSize / power;
+                
+                // Adaptive step size based on echo return loss
+                mu *= Math.Min(1.0f, _echoReturnLoss / 10.0f);
+                
+                for (int k = 0; k < _filterLength; k++)
+                {
+                    int idx = (_bufferPosition - k + _filterLength) % _filterLength;
+                    _filterCoefficients[k] += mu * error * _referenceBuffer[idx];
+                    // Prevent filter coefficients from growing unbounded
+                    _filterCoefficients[k] = Math.Max(-10.0f, Math.Min(10.0f, _filterCoefficients[k]));
+                }
             }
 
+            // Store error for history
+            _errorHistory[_errorHistoryPos] = error * error;
+            _errorHistoryPos = (_errorHistoryPos + 1) % _errorHistory.Length;
+            
             _bufferPosition = (_bufferPosition + 1) % _filterLength;
         }
 
@@ -107,6 +141,65 @@ public class AecProcessor : IAudioProcessor
         }
 
         return new AudioBuffer(output, buffer.Channels, buffer.SampleRate);
+    }
+    
+    /// <summary>
+    /// Detect double-talk scenario (when both near-end and far-end are talking)
+    /// Inspired by WebRTC's Geigel double-talk detector
+    /// </summary>
+    private bool DetectDoubleTalk(float micPower, float refPower, float errorPower)
+    {
+        // Simple energy-based double-talk detection
+        // If mic energy is much higher than reference, likely double-talk
+        if (refPower < 1e-10f) return false;
+        
+        float ratio = micPower / (refPower + 1e-10f);
+        return ratio > _dtdThreshold;
+    }
+    
+    /// <summary>
+    /// Update Echo Return Loss estimation (WebRTC-inspired)
+    /// </summary>
+    private void UpdateEchoReturnLoss(float micPower, float echoPower)
+    {
+        if (echoPower > 1e-10f)
+        {
+            float currentErl = 10.0f * (float)Math.Log10(micPower / (echoPower + 1e-10f));
+            // Smooth ERL estimation
+            _echoReturnLoss = 0.95f * _echoReturnLoss + 0.05f * currentErl;
+            _echoReturnLoss = Math.Max(0.0f, Math.Min(_echoReturnLoss, 50.0f));
+        }
+    }
+    
+    /// <summary>
+    /// Apply non-linear processing for residual echo suppression
+    /// Inspired by WebRTC's comfort noise injection and suppression
+    /// </summary>
+    private float ApplyNonLinearSuppression(float error, float echoEstimate, bool isDoubleTalk)
+    {
+        if (isDoubleTalk)
+        {
+            // During double-talk, don't suppress aggressively
+            return error;
+        }
+        
+        // Calculate suppression gain based on echo estimate strength
+        float echoLevel = Math.Abs(echoEstimate);
+        float errorLevel = Math.Abs(error);
+        
+        if (echoLevel > 1e-6f)
+        {
+            // Suppression factor based on residual echo
+            float suppressionFactor = Math.Min(1.0f, errorLevel / (echoLevel + 1e-6f));
+            
+            // Apply smooth suppression with noise floor
+            float noiseFloor = 0.001f;
+            float suppressedLevel = Math.Max(errorLevel * suppressionFactor, noiseFloor);
+            
+            return error >= 0 ? suppressedLevel : -suppressedLevel;
+        }
+        
+        return error;
     }
 
     public AudioBuffer Process(AudioBuffer buffer)
@@ -120,6 +213,9 @@ public class AecProcessor : IAudioProcessor
         _logger.LogDebug("Resetting AEC processor state");
         Array.Clear(_filterCoefficients, 0, _filterLength);
         Array.Clear(_referenceBuffer, 0, _filterLength);
+        Array.Clear(_errorHistory, 0, _errorHistory.Length);
         _bufferPosition = 0;
+        _errorHistoryPos = 0;
+        _echoReturnLoss = 0.0f;
     }
 }

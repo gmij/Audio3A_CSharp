@@ -161,7 +161,8 @@ else
             {
                 _room = await ApiService.GetRoom(RoomId);
             }
-            // Note: Real API 不支持通过 InviteCode 查找，InviteCode 功能仅在 Mock API 中可用
+            // 注意：Real API 不支持通过 InviteCode 查找房间
+            // InviteCode 功能仅在 Mock API 中可用（用于 GitHub Pages 演示）
         }
         catch
         {

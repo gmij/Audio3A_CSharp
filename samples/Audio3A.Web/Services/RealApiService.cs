@@ -117,6 +117,8 @@ public class RealApiService : IApiService
                 return null;
 
             // WebAPI 不返回 InviteCode，生成一个临时的
+            // 注意：这是一个临时解决方案，生产环境应在服务端实现 InviteCode 功能
+            // 或者考虑移除此功能以保持与 API 的一致性
             var inviteCode = roomId.Length >= 6 ? roomId.Substring(0, 6).ToUpper() : roomId.ToUpper();
 
             return new RoomDetailInfo

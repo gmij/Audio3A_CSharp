@@ -50,6 +50,7 @@ export async function startCall(roomId, enable3A) {
         // 创建 ScriptProcessor 用于采集波形数据
         // 注意：ScriptProcessor 已被弃用，但在这里我们用它来演示
         // 生产环境应该使用 AudioWorklet
+        // TODO: 迁移到 AudioWorklet API 以获得更好的性能
         scriptProcessor = audioContext.createScriptProcessor(2048, 1, 1);
         
         source.connect(analyser);
@@ -191,6 +192,7 @@ function collectWaveformData(audioData, buffer, type) {
     collectWaveformData.counter[type]++;
     
     // 每 10 帧发送一次波形数据（约每秒几次）
+    // TODO: 考虑使用时间节流而不是帧数节流，以获得更一致的更新率
     if (collectWaveformData.counter[type] % 10 === 0) {
         if (dotNetRef && !isMuted) {
             try {

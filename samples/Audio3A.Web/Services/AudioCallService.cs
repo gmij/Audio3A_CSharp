@@ -157,7 +157,10 @@ public class AudioCallService : IAsyncDisposable
             if (_module != null && IsConnected)
             {
                 var result = await _module.InvokeAsync<bool>("stopRecording");
-                IsRecording = !result;
+                if (result)
+                {
+                    IsRecording = false;
+                }
                 return result;
             }
             return false;

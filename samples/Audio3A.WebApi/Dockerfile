@@ -32,7 +32,6 @@ ENV ASPNETCORE_ENVIRONMENT=Production
 
 # 暴露端口
 EXPOSE 80
-EXPOSE 443
 
 # 复制发布的文件
 COPY --from=publish /app/publish .

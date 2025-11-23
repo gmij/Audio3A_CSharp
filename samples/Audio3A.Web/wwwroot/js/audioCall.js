@@ -19,6 +19,10 @@ let inputAudioChunks = [];
 let processedAudioChunks = [];
 let isRecording = false;
 
+// 录制配置常量
+const RECORDING_TIMESLICE_MS = 100; // MediaRecorder 数据收集间隔（毫秒）
+const DOWNLOAD_CLEANUP_DELAY_MS = 100; // 下载后清理延迟（毫秒）
+
 export function initialize(dotNetReference) {
     dotNetRef = dotNetReference;
     console.log('Audio call module initialized');
@@ -270,11 +274,11 @@ export function startRecording() {
         
         // 开始录制
         if (inputAudioRecorder && inputAudioRecorder.state !== 'recording') {
-            inputAudioRecorder.start(100); // 每100ms收集一次数据
+            inputAudioRecorder.start(RECORDING_TIMESLICE_MS);
         }
         
         if (processedAudioRecorder && processedAudioRecorder.state !== 'recording') {
-            processedAudioRecorder.start(100);
+            processedAudioRecorder.start(RECORDING_TIMESLICE_MS);
         }
         
         isRecording = true;
@@ -360,7 +364,7 @@ function downloadBlob(blob, filename) {
     setTimeout(() => {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-    }, 100);
+    }, DOWNLOAD_CLEANUP_DELAY_MS);
 }
 
 // 检查是否正在录制

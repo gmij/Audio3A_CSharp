@@ -7,12 +7,12 @@
 
 <PageHeader Title="房间管理">
     <PageHeaderExtra>
-        <Button Type="@ButtonType.Primary" OnClick="CreateRoom">
-            <Icon Type="plus" Theme="outline" />
+        <Button Type="AntDesign.ButtonType.Primary" OnClick="CreateRoom">
+            <Icon Type="IconType.Plus" Theme="AntDesign.IconThemeType.Outline" />
             创建房间
         </Button>
         <Button OnClick="LoadRooms" Style="margin-left: 8px;">
-            <Icon Type="reload" Theme="outline" />
+            <Icon Type="IconType.Reload" Theme="AntDesign.IconThemeType.Outline" />
             刷新
         </Button>
     </PageHeaderExtra>
@@ -21,7 +21,7 @@
 @if (_loading)
 {
     <div style="text-align: center; padding: 50px;">
-        <Spin Size="large" />
+        <Spin Size="AntDesign.SpinSize.Large" />
     </div>
 }
 else if (_rooms.Count == 0)
@@ -41,14 +41,14 @@ else
             <AntDesign.Col Span="8" Style="margin-bottom: 16px;">
                 <Card>
                     <TitleTemplate>
-                        <Icon Type="home" Theme="outline" />
+                        <Icon Type="IconType.Home" Theme="AntDesign.IconThemeType.Outline" />
                         @room.Name
                     </TitleTemplate>
                     <ChildContent>
-                        <Descriptions Column="1" Size="small">
+                        <Descriptions Column="1" Size="AntDesign.DescriptionsSize.Small">
                             <DescriptionsItem Title="房间ID">@room.Id.Substring(0, 8)</DescriptionsItem>
                             <DescriptionsItem Title="状态">
-                                <Badge Status="@(room.State == "Active" ? "success" : "default")" Text="@room.State" />
+                                <Badge Status="@(room.State == "Active" ? AntDesign.BadgeStatus.Success : AntDesign.BadgeStatus.Default)" Text="@room.State" />
                             </DescriptionsItem>
                             <DescriptionsItem Title="参与者">@room.ParticipantCount / @(room.MaxParticipants > 0 ? room.MaxParticipants.ToString() : "∞")</DescriptionsItem>
                             <DescriptionsItem Title="创建时间">@room.CreatedAt.ToString("yyyy-MM-dd HH:mm")</DescriptionsItem>
@@ -111,12 +111,12 @@ else
         try
         {
             await ApiService.DeleteRoom(roomId);
-            await Message.Success("房间已删除");
+            await Message.SuccessAsync("房间已删除");
             await LoadRooms();
         }
         catch
         {
-            await Message.Error("删除失败");
+            await Message.ErrorAsync("删除失败");
         }
     }
 }

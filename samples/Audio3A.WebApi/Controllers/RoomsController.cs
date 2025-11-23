@@ -166,6 +166,92 @@ public class RoomsController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// 开始房间录音
+    /// </summary>
+    [HttpPost("{roomId}/recording/start")]
+    public ActionResult StartRecording(string roomId)
+    {
+        var room = _roomManager.GetRoom(roomId);
+        if (room == null)
+        {
+            return NotFound(new { message = $"房间 {roomId} 不存在" });
+        }
+
+        if (room.IsRecording)
+        {
+            return BadRequest(new { message = "房间已在录音中" });
+        }
+
+        room.StartRecording();
+        _logger.LogInformation("房间 {RoomId} 开始录音", roomId);
+        return Ok(new { message = "录音已开始" });
+    }
+
+    /// <summary>
+    /// 停止房间录音
+    /// </summary>
+    [HttpPost("{roomId}/recording/stop")]
+    public ActionResult<object> StopRecording(string roomId)
+    {
+        var room = _roomManager.GetRoom(roomId);
+        if (room == null)
+        {
+            return NotFound(new { message = $"房间 {roomId} 不存在" });
+        }
+
+        if (!room.IsRecording)
+        {
+            return BadRequest(new { message = "房间未在录音" });
+        }
+
+        var filePath = room.StopRecording();
+        _logger.LogInformation("房间 {RoomId} 停止录音，文件: {FilePath}", roomId, filePath);
+        return Ok(new { message = "录音已停止", filePath });
+    }
+
+    /// <summary>
+    /// 获取房间录音状态
+    /// </summary>
+    [HttpGet("{roomId}/recording/status")]
+    public ActionResult<object> GetRecordingStatus(string roomId)
+    {
+        var room = _roomManager.GetRoom(roomId);
+        if (room == null)
+        {
+            return NotFound(new { message = $"房间 {roomId} 不存在" });
+        }
+
+        return Ok(new { 
+            isRecording = room.IsRecording,
+            lastRecordingFile = room.GetLastRecordingFile()
+        });
+    }
+
+    /// <summary>
+    /// 下载房间录音文件
+    /// </summary>
+    [HttpGet("recordings/{fileName}")]
+    public ActionResult DownloadRecording(string fileName)
+    {
+        try
+        {
+            var filePath = Path.Combine("recordings", fileName);
+            if (!System.IO.File.Exists(filePath))
+            {
+                return NotFound(new { message = "录音文件不存在" });
+            }
+
+            var fileBytes = System.IO.File.ReadAllBytes(filePath);
+            return File(fileBytes, "audio/wav", fileName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "下载录音文件失败: {FileName}", fileName);
+            return BadRequest(new { message = "下载失败", error = ex.Message });
+        }
+    }
+
     private static RoomResponse MapToResponse(Room room)
     {
         return new RoomResponse

@@ -2,53 +2,28 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Audio3A.Web;
 using Audio3A.Web.Services;
-using System.Net.Http.Json;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
-// 读取 API 配置
-var apiConfig = new ApiConfiguration();
-var useMockApi = false; // 默认使用真实 API
-
-try
-{
-    var httpClient = new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) };
-    var config = await httpClient.GetFromJsonAsync<Dictionary<string, string>>("appsettings.json");
-    if (config != null)
-    {
-        if (config.ContainsKey("ApiBaseUrl"))
-        {
-            apiConfig.BaseUrl = config["ApiBaseUrl"];
-        }
-        
-        // 检查是否使用 Mock API（用于 GitHub Pages）
-        if (config.ContainsKey("UseMockApi") && bool.TryParse(config["UseMockApi"], out var shouldUseMock))
-        {
-            useMockApi = shouldUseMock;
-        }
-    }
-}
-catch
-{
-    // 如果读取失败，使用默认值
-    apiConfig.BaseUrl = builder.HostEnvironment.BaseAddress;
-}
-
-// 注册 API 配置
-builder.Services.AddSingleton(apiConfig);
+// 读取配置值
+var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? builder.HostEnvironment.BaseAddress;
+var useMockApi = builder.Configuration.GetValue<bool>("UseMockApi", false);
 
 // 配置 HttpClient 使用 API 基础地址
 builder.Services.AddScoped(sp => 
 {
-    var config = sp.GetRequiredService<ApiConfiguration>();
-    var httpClient = new HttpClient { BaseAddress = new Uri(config.BaseUrl) };
+    var httpClient = new HttpClient { BaseAddress = new Uri(apiBaseUrl) };
     return httpClient;
 });
 
 // Add Ant Design Blazor
 builder.Services.AddAntDesign();
+
+// 添加音频服务
+builder.Services.AddScoped<AudioCallService>();
+builder.Services.AddScoped<AudioWebSocketService>();
 
 // 根据配置注册 API 服务
 if (useMockApi)
@@ -66,7 +41,7 @@ else
         var logger = sp.GetService<ILogger<RealApiService>>();
         return new RealApiService(httpClient, logger);
     });
-    Console.WriteLine($"使用真实 API 服务（连接到 {apiConfig.BaseUrl}）");
+    Console.WriteLine($"使用真实 API 服务（连接到 {apiBaseUrl}）");
 }
 
 // 保留 MockApiService 的单独注册（向后兼容）

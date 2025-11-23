@@ -11,12 +11,12 @@
 @if (_loading)
 {
     <div style="text-align: center; padding: 50px;">
-        <Spin Size="large" />
+        <Spin Size="SpinSize.Large" />
     </div>
 }
 else if (_room == null)
 {
-    <Result Status="404" Title="房间不存在" SubTitle="该房间可能已被删除">
+    <Result Status="ResultStatus.Http404" Title="房间不存在" SubTitle="该房间可能已被删除">
         <Extra>
             <Button Type="@ButtonType.Primary" OnClick="GoBack">返回列表</Button>
         </Extra>
@@ -41,13 +41,13 @@ else
                         <Text Copyable Code Style="font-size: 12px;">@GetInviteLink()</Text>
                     </DescriptionsItem>
                     <DescriptionsItem Title="状态">
-                        <Badge Status="@(_room.State == "Active" ? "success" : "default")" Text="@_room.State" />
+                        <Badge Status="@(_room.State == "Active" ? AntDesign.BadgeStatus.Success : AntDesign.BadgeStatus.Default)" Text="@_room.State" />
                     </DescriptionsItem>
                     <DescriptionsItem Title="参与者数量">@_room.ParticipantCount / @(_room.MaxParticipants > 0 ? _room.MaxParticipants.ToString() : "∞")</DescriptionsItem>
                     <DescriptionsItem Title="音频处理">
-                        @if (_room.EnableAec) { <Tag Color="green">AEC</Tag> }
-                        @if (_room.EnableAgc) { <Tag Color="green">AGC</Tag> }
-                        @if (_room.EnableAns) { <Tag Color="green">ANS</Tag> }
+                        @if (_room.EnableAec) { <Tag Color="TagColor.Green">AEC</Tag> }
+                        @if (_room.EnableAgc) { <Tag Color="TagColor.Green">AGC</Tag> }
+                        @if (_room.EnableAns) { <Tag Color="TagColor.Green">ANS</Tag> }
                         @if (!_room.EnableAec && !_room.EnableAgc && !_room.EnableAns) { <span style="color: #999;">未启用</span> }
                     </DescriptionsItem>
                     <DescriptionsItem Title="创建时间">@_room.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</DescriptionsItem>
@@ -59,12 +59,12 @@ else
             <Card Title="加入房间">
                 @if (_currentParticipantId != null)
                 {
-                    <Result Status="success"
+                    <Result Status="ResultStatus.Success"
                             Title="您已在房间中"
                             SubTitle="@($"您以 {_currentParticipantName} 的身份加入了房间")">
                         <Extra>
-                            <Button Type="@ButtonType.Primary" Size="large" OnClick="StartCall">
-                                <Icon Type="phone" Theme="outline" />
+                            <Button Type="@ButtonType.Primary" Size="ButtonSize.Large" OnClick="StartCall">
+                                <Icon Type="IconType.Phone" Theme="IconThemeType.Outline" />
                                 开始通话
                             </Button>
                         </Extra>
@@ -78,7 +78,7 @@ else
                         </FormItem>
                         <FormItem>
                             <Button Type="@ButtonType.Primary" HtmlType="submit" Loading="@_joining" Block>
-                                <Icon Type="login" Theme="outline" />
+                                <Icon Type="IconType.Login" Theme="IconThemeType.Outline" />
                                 加入房间
                             </Button>
                         </FormItem>
@@ -98,33 +98,100 @@ else
         else
         {
             <Table TItem="ParticipantInfo" DataSource="@_room.Participants" Size="TableSize.Small">
-                <Column Title="名称" @bind-Field="@context.Name" />
-                <Column Title="状态" @bind-Field="@context.State">
-                    <Badge Status="@(context.State == "Connected" ? "success" : "default")" Text="@context.State" />
-                </Column>
-                <Column Title="3A 处理" @bind-Field="@context.Enable3A">
+                <PropertyColumn Property="c => c.Name" Title="名称" />
+                <PropertyColumn Property="c => c.State" Title="状态">
+                    <Badge Status="@(context.State == "Connected" ? BadgeStatus.Success : BadgeStatus.Default)" Text="@context.State" />
+                </PropertyColumn>
+                <PropertyColumn Property="c => c.Enable3A" Title="3A 处理">
                     @(context.Enable3A ? "✓ 已启用" : "✗ 未启用")
-                </Column>
-                <Column Title="加入时间" @bind-Field="@context.JoinedAt">
+                </PropertyColumn>
+                <PropertyColumn Property="c => c.JoinedAt" Title="加入时间">
                     @context.JoinedAt.ToString("HH:mm:ss")
-                </Column>
+                </PropertyColumn>
                 <ActionColumn Title="操作">
                     @if (context.Id == _currentParticipantId)
                     {
-                        <Button Type="@ButtonType.Primary" Size="small" OnClick="StartCall">
-                            <Icon Type="phone" Theme="outline" />
+                        <Button Type="ButtonType.Primary" Size="ButtonSize.Small" OnClick="StartCall">
+                            <Icon Type="IconType.Phone" Theme="IconThemeType.Outline" />
                             开始通话
                         </Button>
                     }
                     else
                     {
                         <Popconfirm Title="确定要移除该参与者吗？" OnConfirm="() => RemoveParticipant(context.Id)">
-                            <Button Type="@ButtonType.Link" Danger Size="small">移除</Button>
+                            <Button Type="ButtonType.Link" Danger Size="ButtonSize.Small">移除</Button>
                         </Popconfirm>
                     }
                 </ActionColumn>
             </Table>
         }
+    </Card>
+
+    <Card Title="房间录音" Style="margin-top: 16px;">
+        <Space Direction="SpaceDirection.Vertical" Style="width: 100%;">
+            <SpaceItem>
+                <Alert Type="@AlertType.Info" Message="提示" Description="录音会保存所有参与者的音频（经过 3A 处理）。开始录音后，参与者的语音将被实时录制到服务器。" ShowIcon="true" />
+            </SpaceItem>
+            
+            <SpaceItem>
+                <Space>
+                    <SpaceItem>
+                        @if (_isRecording)
+                        {
+                            <Button Type="ButtonType.Default" 
+                                    Danger 
+                                    Size="ButtonSize.Large"
+                                    Loading="@_recordingOperating"
+                                    OnClick="StopRecording">
+                                <Icon Type="IconType.PauseCircle" Theme="IconThemeType.Outline" />
+                                停止录音
+                            </Button>
+                            <Badge Status="BadgeStatus.Processing" Text="录音中..." />
+                        }
+                        else
+                        {
+                            <Button Type="ButtonType.Primary" 
+                                    Size="ButtonSize.Large"
+                                    Loading="@_recordingOperating"
+                                    OnClick="StartRecording">
+                                <Icon Type="IconType.PlayCircle" Theme="IconThemeType.Outline" />
+                                开始录音
+                            </Button>
+                        }
+                    </SpaceItem>
+                    <SpaceItem>
+                        <Button Type="@ButtonType.Default" 
+                                Size="ButtonSize.Large"
+                                OnClick="RefreshRecordingStatus">
+                            <Icon Type="IconType.Reload" Theme="IconThemeType.Outline" />
+                            刷新状态
+                        </Button>
+                    </SpaceItem>
+                </Space>
+            </SpaceItem>
+
+            @if (!string.IsNullOrEmpty(_lastRecordingFile))
+            {
+                <SpaceItem>
+                    <Alert Type="@AlertType.Success" 
+                           Message="录音已完成" 
+                           Description="@($"录音文件已保存: {_lastRecordingFile}")" 
+                           ShowIcon="true">
+                        <MessageTemplate>
+                            <Space>
+                                <SpaceItem>录音已完成</SpaceItem>
+                                <SpaceItem>
+                                    <Button Type="ButtonType.Link" Size="ButtonSize.Small" OnClick="DownloadRecording">
+                                        <Icon Type="IconType.Download" Theme="IconThemeType.Outline" />
+                                        下载录音
+                                    </Button>
+                                </SpaceItem>
+                            </Space>
+                        </MessageTemplate>
+                    </Alert>
+                </SpaceItem>
+            }
+        </Space>
     </Card>
 }
 
@@ -146,10 +213,14 @@ else
     private bool _joining = false;
     private string? _currentParticipantId;
     private string? _currentParticipantName;
+    private bool _isRecording = false;
+    private bool _recordingOperating = false;
+    private string? _lastRecordingFile;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadRoom();
+        await RefreshRecordingStatus();
     }
 
     private async Task LoadRoom()
@@ -178,13 +249,13 @@ else
     {
         if (string.IsNullOrWhiteSpace(_joinModel.Name))
         {
-            await Message.Error("请输入您的名称");
+            await Message.ErrorAsync("请输入您的名称");
             return;
         }
 
         if (string.IsNullOrEmpty(RoomId))
         {
-            await Message.Error("房间 ID 无效");
+            await Message.ErrorAsync("房间 ID 无效");
             return;
         }
 
@@ -196,18 +267,18 @@ else
             {
                 _currentParticipantId = participant.Id;
                 _currentParticipantName = participant.Name;
-                await Message.Success("成功加入房间！");
+                await Message.SuccessAsync("成功加入房间！");
                 await LoadRoom();
                 _joinModel.Name = string.Empty;
             }
             else
             {
-                await Message.Error("加入房间失败，房间可能已满");
+                await Message.ErrorAsync("加入房间失败，房间可能已满");
             }
         }
         catch (Exception ex)
         {
-            await Message.Error($"加入失败: {ex.Message}");
+            await Message.ErrorAsync($"加入失败: {ex.Message}");
         }
         finally
         {
@@ -230,12 +301,12 @@ else
         try
         {
             await ApiService.LeaveRoom(RoomId, participantId);
-            await Message.Success("参与者已移除");
+            await Message.SuccessAsync("参与者已移除");
             await LoadRoom();
         }
         catch
         {
-            await Message.Error("移除失败");
+            await Message.ErrorAsync("移除失败");
         }
     }
 
@@ -256,4 +327,92 @@ else
         var baseUri = Navigation.BaseUri.TrimEnd('/');
         return $"{baseUri}/join/{_room.InviteCode}";
     }
+
+    private async Task StartRecording()
+    {
+        if (string.IsNullOrEmpty(RoomId)) return;
+
+        _recordingOperating = true;
+        try
+        {
+            await ApiService.StartRecording(RoomId);
+            _isRecording = true;
+            _lastRecordingFile = null;
+            await Message.SuccessAsync("录音已开始");
+        }
+        catch (Exception ex)
+        {
+            await Message.ErrorAsync($"开始录音失败: {ex.Message}");
+        }
+        finally
+        {
+            _recordingOperating = false;
+        }
+    }
+
+    private async Task StopRecording()
+    {
+        if (string.IsNullOrEmpty(RoomId)) return;
+
+        _recordingOperating = true;
+        try
+        {
+            var result = await ApiService.StopRecording(RoomId);
+            _isRecording = false;
+            _lastRecordingFile = result?.FilePath;
+            await Message.SuccessAsync("录音已停止");
+        }
+        catch (Exception ex)
+        {
+            await Message.ErrorAsync($"停止录音失败: {ex.Message}");
+        }
+        finally
+        {
+            _recordingOperating = false;
+        }
+    }
+
+    private async Task RefreshRecordingStatus()
+    {
+        if (string.IsNullOrEmpty(RoomId)) return;
+
+        try
+        {
+            var status = await ApiService.GetRecordingStatus(RoomId);
+            _isRecording = status?.IsRecording ?? false;
+            
+            // 如果有上次的录音文件，也恢复显示
+            if (!string.IsNullOrEmpty(status?.LastRecordingFile))
+            {
+                _lastRecordingFile = status.LastRecordingFile;
+            }
+        }
+        catch
+        {
+            // 忽略错误
+        }
+    }
+
+    private void DownloadRecording()
+    {
+        if (string.IsNullOrEmpty(_lastRecordingFile)) return;
+
+        // _lastRecordingFile 格式: "recordings/xxx.wav"
+        // 需要移除 "recordings/" 前缀，只保留文件名
+        var fileName = _lastRecordingFile;
+        
+        // 处理路径分隔符（支持 / 和 \）
+        if (fileName.Contains('/'))
+        {
+            fileName = fileName.Substring(fileName.LastIndexOf('/') + 1);
+        }
+        else if (fileName.Contains('\\'))
+        {
+            fileName = fileName.Substring(fileName.LastIndexOf('\\') + 1);
+        }
+        
+        var downloadUrl = $"{ApiService.BaseUrl}/api/rooms/recordings/{fileName}";
+        Navigation.NavigateTo(downloadUrl, forceLoad: true);
+    }
 }
+

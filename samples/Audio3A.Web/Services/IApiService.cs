@@ -5,6 +5,8 @@ namespace Audio3A.Web.Services;
 /// </summary>
 public interface IApiService
 {
+    string BaseUrl { get; }
+    
     // 统计信息
     Task<StatsData> GetStats();
     
@@ -17,6 +19,11 @@ public interface IApiService
     // 参与者管理
     Task<ParticipantData?> JoinRoom(string roomId, string name);
     Task<bool> LeaveRoom(string roomId, string participantId);
+    
+    // 录音管理
+    Task StartRecording(string roomId);
+    Task<RecordingResult?> StopRecording(string roomId);
+    Task<RecordingStatus?> GetRecordingStatus(string roomId);
 }
 
 // 共享数据模型
@@ -81,4 +88,16 @@ public class ParticipantData
     public string State { get; set; } = string.Empty;
     public DateTime JoinedAt { get; set; } = DateTime.Now;
     public bool Enable3A { get; set; }
+}
+
+public class RecordingResult
+{
+    public string Message { get; set; } = string.Empty;
+    public string FilePath { get; set; } = string.Empty;
+}
+
+public class RecordingStatus
+{
+    public bool IsRecording { get; set; }
+    public string? LastRecordingFile { get; set; }
 }

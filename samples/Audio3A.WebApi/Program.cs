@@ -1,7 +1,6 @@
-using Audio3A.Core;
 using Audio3A.Core.Extensions;
-using Audio3A.RoomManagement;
 using Audio3A.RoomManagement.Extensions;
+using Audio3A.WebApi.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,6 +23,9 @@ builder.Services.AddCors(options =>
     });
 });
 
+// Enable WebSocket support
+builder.Services.AddSingleton<AudioWebSocketHandler>();
+
 // Add Audio3A services
 builder.Services.AddAudio3A(config =>
 {
@@ -39,11 +41,20 @@ builder.Services.AddAudio3A(config =>
 builder.Services.AddRoomManagement(options =>
 {
     options.EnableWebSocket = true;
+    options.EnableWebRTC = true; // 启用 WebRTC 以注册 WebRtcAdapter
+    options.EnableHybrid = true; // 启用 Hybrid 以注册 HybridAdapter
     options.DefaultMaxParticipants = 10;
     options.AutoCleanupIntervalMinutes = 30;
 });
 
 var app = builder.Build();
+
+// Enable WebSocket middleware
+var webSocketOptions = new WebSocketOptions
+{
+    KeepAliveInterval = TimeSpan.FromSeconds(120)
+};
+app.UseWebSockets(webSocketOptions);
 
 // Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
@@ -54,6 +65,21 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseCors("AllowAll");
+
+// Map WebSocket endpoint
+app.Map("/ws/audio", async (HttpContext context, AudioWebSocketHandler handler) =>
+{
+    if (context.WebSockets.IsWebSocketRequest)
+    {
+        await handler.HandleWebSocketAsync(context);
+    }
+    else
+    {
+        context.Response.StatusCode = StatusCodes.Status400BadRequest;
+        await context.Response.WriteAsync("WebSocket connections only");
+    }
+});
+
 app.UseAuthorization();
 app.MapControllers();
 

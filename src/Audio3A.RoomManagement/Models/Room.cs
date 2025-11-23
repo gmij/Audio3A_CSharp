@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Audio3A.Core;
+using Audio3A.RoomManagement.Audio;
 
 namespace Audio3A.RoomManagement.Models;
 
@@ -53,6 +54,16 @@ public class Room
     /// </summary>
     public Dictionary<string, object> Metadata { get; }
 
+    /// <summary>
+    /// 房间音频录制器
+    /// </summary>
+    private RoomAudioRecorder? _recorder;
+
+    /// <summary>
+    /// 参与者音频缓冲区（用于混音）
+    /// </summary>
+    private readonly ConcurrentDictionary<string, ConcurrentQueue<float[]>> _audioBuffers;
+
     public Room(string id, string name, Audio3AConfig audioConfig, TransportProtocol supportedProtocols = TransportProtocol.Hybrid)
     {
         if (string.IsNullOrWhiteSpace(id))
@@ -67,6 +78,7 @@ public class Room
         _participants = new ConcurrentDictionary<string, Participant>();
         AudioConfig = audioConfig ?? throw new ArgumentNullException(nameof(audioConfig));
         Metadata = new Dictionary<string, object>();
+        _audioBuffers = new ConcurrentDictionary<string, ConcurrentQueue<float[]>>();
     }
 
     /// <summary>
@@ -119,10 +131,115 @@ public class Room
     public bool IsEmpty => _participants.IsEmpty;
 
     /// <summary>
+    /// 添加参与者音频数据（处理后的音频）
+    /// </summary>
+    public void AddParticipantAudio(string participantId, float[] audioData)
+    {
+        if (!_audioBuffers.ContainsKey(participantId))
+        {
+            _audioBuffers.TryAdd(participantId, new ConcurrentQueue<float[]>());
+        }
+
+        if (_audioBuffers.TryGetValue(participantId, out var buffer))
+        {
+            buffer.Enqueue(audioData);
+
+            // 限制队列大小（防止内存泄漏）
+            while (buffer.Count > 100) // 保留最近 100 帧
+            {
+                buffer.TryDequeue(out _);
+            }
+        }
+
+        // 如果正在录音，添加到录音器
+        if (_recorder?.IsRecording == true)
+        {
+            _recorder.AddAudioData(audioData);
+            
+            // 添加日志以便调试
+            System.Diagnostics.Debug.WriteLine(
+                $"[Room {Id}] 添加音频到录音器: ParticipantId={participantId}, Samples={audioData.Length}");
+        }
+    }
+
+    /// <summary>
+    /// 开始房间录音
+    /// </summary>
+    public void StartRecording(string outputDirectory = "recordings")
+    {
+        if (_recorder?.IsRecording == true)
+        {
+            return;
+        }
+
+        _recorder?.Dispose();
+        _recorder = new RoomAudioRecorder(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<RoomAudioRecorder>.Instance,
+            Id,
+            outputDirectory,
+            AudioConfig.SampleRate,
+            AudioConfig.Channels);
+
+        _recorder.StartRecording();
+    }
+
+    /// <summary>
+    /// 停止房间录音
+    /// </summary>
+    public string? StopRecording()
+    {
+        if (_recorder?.IsRecording == true)
+        {
+            _recorder.StopRecording();
+            var filePath = _recorder.OutputFilePath;
+            
+            // 保存录音文件路径到元数据，便于后续查询
+            if (!string.IsNullOrEmpty(filePath))
+            {
+                if (!Metadata.ContainsKey("LastRecordingFile"))
+                {
+                    Metadata["LastRecordingFile"] = filePath;
+                }
+                else
+                {
+                    Metadata["LastRecordingFile"] = filePath;
+                }
+            }
+            
+            return filePath;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// 获取最后一次录音文件路径
+    /// </summary>
+    public string? GetLastRecordingFile()
+    {
+        if (Metadata.TryGetValue("LastRecordingFile", out var value) && value is string filePath)
+        {
+            return filePath;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// 是否正在录音
+    /// </summary>
+    public bool IsRecording => _recorder?.IsRecording == true;
+
+    /// <summary>
     /// 关闭房间
     /// </summary>
     public void Close()
     {
         State = RoomState.Closed;
+
+        // 停止录音
+        if (_recorder?.IsRecording == true)
+        {
+            _recorder.StopRecording();
+        }
+        _recorder?.Dispose();
     }
 }

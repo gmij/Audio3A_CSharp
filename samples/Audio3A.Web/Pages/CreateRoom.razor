@@ -24,7 +24,7 @@
         <Divider>音频处理设置</Divider>
 
         <FormItem>
-            <Checkbox @bind-Checked="@_model.EnableAec">
+            <Checkbox @bind-Value="@_model.EnableAec">
                 启用回声消除 (AEC)
             </Checkbox>
             <div style="color: #999; font-size: 12px; margin-left: 24px;">
@@ -33,7 +33,7 @@
         </FormItem>
 
         <FormItem>
-            <Checkbox @bind-Checked="@_model.EnableAgc">
+            <Checkbox @bind-Value="@_model.EnableAgc">
                 启用自动增益控制 (AGC)
             </Checkbox>
             <div style="color: #999; font-size: 12px; margin-left: 24px;">
@@ -42,7 +42,7 @@
         </FormItem>
 
         <FormItem>
-            <Checkbox @bind-Checked="@_model.EnableAns">
+            <Checkbox @bind-Value="@_model.EnableAns">
                 启用噪声抑制 (ANS)
             </Checkbox>
             <div style="color: #999; font-size: 12px; margin-left: 24px;">
@@ -75,7 +75,7 @@
     {
         if (string.IsNullOrWhiteSpace(_model.Name))
         {
-            await Message.Error("请输入房间名称");
+            await Message.ErrorAsync("请输入房间名称");
             return;
         }
 
@@ -90,12 +90,12 @@
                 _model.EnableAns
             );
 
-            await Message.Success("房间创建成功！");
+            await Message.SuccessAsync("房间创建成功！");
             Navigation.NavigateTo(Navigation.ToAbsoluteUri($"rooms/{room.Id}").ToString(), forceLoad: false);
         }
         catch (Exception ex)
         {
-            await Message.Error($"创建失败: {ex.Message}");
+            await Message.ErrorAsync($"创建失败: {ex.Message}");
         }
         finally
         {

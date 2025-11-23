@@ -2,6 +2,7 @@
 @using Audio3A.Web.Components
 @inject IApiService ApiService
 @inject AudioCallService AudioService
+@inject AudioWebSocketService WebSocketService
 @inject NavigationManager Navigation
 @inject IMessageService Message
 @implements IAsyncDisposable
@@ -12,7 +13,7 @@
     @if (_room == null)
     {
         <div class="call-loading">
-            <Spin Size="large" />
+            <Spin Size="SpinSize.Large" />
             <p>加载中...</p>
         </div>
     }
@@ -21,7 +22,7 @@
         <div class="call-header">
             <h2>@_room.Name</h2>
             <div class="call-info">
-                <Badge Status="processing" Text="@($"{_callDuration:hh\\:mm\\:ss}")" />
+                <Badge Status="BadgeStatus.Processing" Text="@($"{_callDuration:hh\\:mm\\:ss}")" />
                 <span style="margin-left: 16px;">参与者: @_room.Participants.Count</span>
             </div>
         </div>
@@ -49,8 +50,8 @@
         <div class="call-main">
             <!-- 本地用户 -->
             <div class="participant-card local">
-                <Avatar Size="100" Style="@GetAvatarStyle(_audioLevel)">
-                    <Icon Type="user" Theme="outline" />
+                <Avatar Size="@("100")" Style="@GetAvatarStyle(_audioLevel)">
+                    <Icon Type="user" Theme="IconThemeType.Outline" />
                 </Avatar>
                 <div class="participant-name">@_participantName (您)</div>
                 <div class="audio-indicator">
@@ -62,8 +63,8 @@
             @foreach (var p in _room.Participants.Where(p => p.Id != ParticipantId))
             {
                 <div class="participant-card">
-                    <Avatar Size="100">
-                        <Icon Type="user" Theme="outline" />
+                    <Avatar Size="@("100")">
+                        <Icon Type="user" Theme="IconThemeType.Outline" />
                     </Avatar>
                     <div class="participant-name">@p.Name</div>
                     <div class="audio-indicator">
@@ -75,58 +76,27 @@
 
         <div class="call-controls">
             <Button Type="@ButtonType.Default" 
-                    Shape="circle" 
-                    Size="large"
+                    Shape="ButtonShape.Circle" 
+                    Size="ButtonSize.Large"
                     OnClick="ToggleMute"
                     Style="@GetMuteButtonStyle()">
-                <Icon Type="@(AudioService.IsMuted ? "audio-muted" : "audio")" Theme="outline" />
-            </Button>
-
-            <Button Type="@ButtonType.Default" 
-                    Shape="circle" 
-                    Size="large"
-                    OnClick="ToggleRecording"
-                    Style="@GetRecordButtonStyle()">
-                <Icon Type="@(AudioService.IsRecording ? "pause-circle" : "video-camera")" Theme="outline" />
+                <Icon Type="@(AudioService.IsMuted ? "audio-muted" : "audio")" Theme="IconThemeType.Outline" />
             </Button>
 
             <Button Type="@ButtonType.Primary" 
                     Danger
-                    Shape="circle" 
-                    Size="large"
+                    Shape="ButtonShape.Circle" 
+                    Size="ButtonSize.Large"
                     OnClick="EndCall"
                     Style="width: 80px; height: 80px; font-size: 32px;">
-                <Icon Type="phone" Theme="outline" Rotate="135" />
+                <Icon Type="phone" Theme="IconThemeType.Outline" Rotate="135" />
             </Button>
 
-            <Dropdown Trigger="@(new Trigger[] { Trigger.Click })" Disabled="@(!_hasRecordedAudio)">
-                <Overlay>
-                    <Menu>
-                        <MenuItem OnClick="DownloadInputAudio">
-                            <Icon Type="download" Theme="outline" />
-                            下载原声音频
-                        </MenuItem>
-                        <MenuItem OnClick="DownloadProcessedAudio">
-                            <Icon Type="download" Theme="outline" />
-                            下载净化后音频
-                        </MenuItem>
-                    </Menu>
-                </Overlay>
-                <ChildContent>
-                    <Button Type="@ButtonType.Default" 
-                            Shape="circle" 
-                            Size="large"
-                            Disabled="@(!_hasRecordedAudio)">
-                        <Icon Type="download" Theme="outline" />
-                    </Button>
-                </ChildContent>
-            </Dropdown>
-
             <Button Type="@ButtonType.Default" 
-                    Shape="circle" 
-                    Size="large"
+                    Shape="ButtonShape.Circle" 
+                    Size="ButtonSize.Large"
                     Disabled>
-                <Icon Type="setting" Theme="outline" />
+                <Icon Type="setting" Theme="IconThemeType.Outline" />
             </Button>
         </div>
     }
@@ -243,7 +213,6 @@
     private float _audioLevel = 0;
     private TimeSpan _callDuration = TimeSpan.Zero;
     private System.Timers.Timer? _timer;
-    private bool _hasRecordedAudio = false;
     
     // 波形可视化组件引用
     private WaveformVisualizer? _inputWaveform;
@@ -268,20 +237,20 @@
                     Console.WriteLine($"Call.razor: Participant name={_participantName}");
                 }
 
-                // 启动音频通话
-                bool enable3A = _room.EnableAec || _room.EnableAgc || _room.EnableAns;
-                Console.WriteLine($"Call.razor: Starting audio call with 3A={enable3A}");
-                
+                // 连接 WebSocket
+                await WebSocketService.ConnectAsync(RoomId, ParticipantId ?? "");
+                Console.WriteLine("Call.razor: WebSocket connected");
+
+                // 启动音频采集
                 await AudioService.InitializeAsync();
                 Console.WriteLine("Call.razor: AudioService initialized");
                 
-                await AudioService.StartCallAsync(RoomId, enable3A);
-                Console.WriteLine("Call.razor: AudioService started");
+                await AudioService.StartCaptureAsync(RoomId);
+                Console.WriteLine("Call.razor: Audio capture started");
 
                 // 注册事件
+                AudioService.OnAudioData += OnAudioData; // 音频数据回调
                 AudioService.OnAudioLevel += OnAudioLevel;
-                AudioService.OnInputWaveform += OnInputWaveform;
-                AudioService.OnProcessedWaveform += OnProcessedWaveform;
                 AudioService.OnError += OnError;
                 Console.WriteLine("Call.razor: Event handlers registered");
 
@@ -295,6 +264,22 @@
                 _timer.Start();
                 Console.WriteLine("Call.razor: Timer started");
             }
+        }
+    }
+
+    /// <summary>
+    /// 音频数据回调 - 通过 WebSocket 发送到后端
+    /// </summary>
+    private async void OnAudioData(float[] audioData)
+    {
+        try
+        {
+            // 将音频数据发送到后端
+            await WebSocketService.SendAudioDataAsync(audioData);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to send audio data: {ex.Message}");
         }
     }
 
@@ -313,29 +298,7 @@
     {
         InvokeAsync(async () =>
         {
-            await Message.Error($"通话错误: {message}");
-        });
-    }
-
-    private void OnInputWaveform(byte[] waveformData)
-    {
-        InvokeAsync(async () =>
-        {
-            if (_inputWaveform != null)
-            {
-                await _inputWaveform.UpdateWaveformAsync(waveformData);
-            }
-        });
-    }
-
-    private void OnProcessedWaveform(byte[] waveformData)
-    {
-        InvokeAsync(async () =>
-        {
-            if (_processedWaveform != null)
-            {
-                await _processedWaveform.UpdateWaveformAsync(waveformData);
-            }
+            await Message.ErrorAsync($"通话错误: {message}");
         });
     }
 
@@ -345,62 +308,15 @@
         await InvokeAsync(StateHasChanged);
     }
 
-    private async Task ToggleRecording()
-    {
-        if (AudioService.IsRecording)
-        {
-            var stopped = await AudioService.StopRecordingAsync();
-            if (stopped)
-            {
-                _hasRecordedAudio = true;
-                await Message.Success("录制已停止");
-            }
-        }
-        else
-        {
-            var started = await AudioService.StartRecordingAsync();
-            if (started)
-            {
-                await Message.Info("开始录制音频...");
-            }
-            else
-            {
-                await Message.Error("无法开始录制");
-            }
-        }
-        await InvokeAsync(StateHasChanged);
-    }
-
-    private async Task DownloadInputAudio()
-    {
-        var success = await AudioService.DownloadInputAudioAsync();
-        if (success)
-        {
-            await Message.Success("原声音频下载成功");
-        }
-        else
-        {
-            await Message.Error("下载失败，请先录制音频");
-        }
-    }
-
-    private async Task DownloadProcessedAudio()
-    {
-        var success = await AudioService.DownloadProcessedAudioAsync();
-        if (success)
-        {
-            await Message.Success("净化后音频下载成功");
-        }
-        else
-        {
-            await Message.Error("下载失败，请先录制音频");
-        }
-    }
-
     private async Task EndCall()
     {
         _timer?.Stop();
-        await AudioService.EndCallAsync();
+        
+        // 停止音频采集
+        await AudioService.StopCaptureAsync();
+        
+        // 断开 WebSocket
+        await WebSocketService.DisconnectAsync();
         
         if (!string.IsNullOrEmpty(RoomId) && !string.IsNullOrEmpty(ParticipantId))
         {
@@ -422,23 +338,22 @@
         return AudioService.IsMuted ? "background-color: #ff4d4f; color: white;" : "";
     }
 
-    private string GetRecordButtonStyle()
-    {
-        return AudioService.IsRecording ? "background-color: #ff4d4f; color: white; animation: pulse 1.5s infinite;" : "";
-    }
-
     public async ValueTask DisposeAsync()
     {
         _timer?.Dispose();
 
+        AudioService.OnAudioData -= OnAudioData;
         AudioService.OnAudioLevel -= OnAudioLevel;
-        AudioService.OnInputWaveform -= OnInputWaveform;
-        AudioService.OnProcessedWaveform -= OnProcessedWaveform;
         AudioService.OnError -= OnError;
 
         if (AudioService.IsConnected)
         {
-            await AudioService.EndCallAsync();
+            await AudioService.StopCaptureAsync();
+        }
+
+        if (WebSocketService.IsConnected)
+        {
+            await WebSocketService.DisconnectAsync();
         }
     }
 }

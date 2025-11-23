@@ -10,6 +10,10 @@ public class MockApiService : IApiService
 {
     private readonly ConcurrentDictionary<string, InternalRoomData> _rooms = new();
     private readonly ConcurrentDictionary<string, InternalParticipantData> _participants = new();
+    private readonly ConcurrentDictionary<string, bool> _recordingStatus = new();
+    private readonly ConcurrentDictionary<string, string> _lastRecordingFiles = new();
+
+    public string BaseUrl => "/mock-api";
 
     private class InternalRoomData
     {
@@ -198,5 +202,46 @@ public class MockApiService : IApiService
             TotalParticipants = _participants.Count
         };
         return Task.FromResult(stats);
+    }
+
+    // 录音管理（Mock 实现）
+    public Task StartRecording(string roomId)
+    {
+        if (!_rooms.ContainsKey(roomId))
+            throw new Exception("房间不存在");
+
+        _recordingStatus[roomId] = true;
+        return Task.CompletedTask;
+    }
+
+    public Task<RecordingResult?> StopRecording(string roomId)
+    {
+        if (!_rooms.ContainsKey(roomId))
+            throw new Exception("房间不存在");
+
+        _recordingStatus[roomId] = false;
+        
+        var filePath = $"recordings/{roomId}_{DateTime.Now:yyyyMMdd_HHmmss}.wav";
+        _lastRecordingFiles[roomId] = filePath;
+        
+        var result = new RecordingResult
+        {
+            Message = "录音已停止（Mock 模式）",
+            FilePath = filePath
+        };
+        
+        return Task.FromResult<RecordingResult?>(result);
+    }
+
+    public Task<RecordingStatus?> GetRecordingStatus(string roomId)
+    {
+        var isRecording = _recordingStatus.TryGetValue(roomId, out var status) && status;
+        _lastRecordingFiles.TryGetValue(roomId, out var lastFile);
+        
+        return Task.FromResult<RecordingStatus?>(new RecordingStatus
+        {
+            IsRecording = isRecording,
+            LastRecordingFile = lastFile
+        });
     }
 }

@@ -11,6 +11,8 @@ public class RealApiService : IApiService
     private readonly HttpClient _httpClient;
     private readonly ILogger<RealApiService>? _logger;
 
+    public string BaseUrl => _httpClient.BaseAddress?.ToString().TrimEnd('/') ?? "";
+
     public RealApiService(HttpClient httpClient, ILogger<RealApiService>? logger = null)
     {
         _httpClient = httpClient;
@@ -247,6 +249,48 @@ public class RealApiService : IApiService
         {
             _logger?.LogError(ex, "离开房间失败: {RoomId}, {ParticipantId}", roomId, participantId);
             return false;
+        }
+    }
+
+    public async Task StartRecording(string roomId)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsync($"/api/rooms/{roomId}/recording/start", null);
+            response.EnsureSuccessStatusCode();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "开始录音失败: {RoomId}", roomId);
+            throw;
+        }
+    }
+
+    public async Task<RecordingResult?> StopRecording(string roomId)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsync($"/api/rooms/{roomId}/recording/stop", null);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<RecordingResult>();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "停止录音失败: {RoomId}", roomId);
+            throw;
+        }
+    }
+
+    public async Task<RecordingStatus?> GetRecordingStatus(string roomId)
+    {
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<RecordingStatus>($"/api/rooms/{roomId}/recording/status");
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "获取录音状态失败: {RoomId}", roomId);
+            return null;
         }
     }
 }

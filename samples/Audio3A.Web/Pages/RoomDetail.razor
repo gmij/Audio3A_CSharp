@@ -1,6 +1,6 @@
 @page "/rooms/{RoomId}"
 @page "/join/{InviteCode}"
-@inject MockApiService MockApi
+@inject IApiService ApiService
 @inject NavigationManager Navigation
 @inject IMessageService Message
 
@@ -97,7 +97,7 @@ else
         }
         else
         {
-            <Table TItem="MockApiService.ParticipantInfo" DataSource="@_room.Participants" Size="TableSize.Small">
+            <Table TItem="ParticipantInfo" DataSource="@_room.Participants" Size="TableSize.Small">
                 <Column Title="名称" @bind-Field="@context.Name" />
                 <Column Title="状态" @bind-Field="@context.State">
                     <Badge Status="@(context.State == "Connected" ? "success" : "default")" Text="@context.State" />
@@ -140,7 +140,7 @@ else
         public string Name { get; set; } = string.Empty;
     }
 
-    private MockApiService.RoomDetailInfo? _room;
+    private RoomDetailInfo? _room;
     private JoinRoomModel _joinModel = new();
     private bool _loading = true;
     private bool _joining = false;
@@ -157,19 +157,12 @@ else
         _loading = true;
         try
         {
-            if (!string.IsNullOrEmpty(InviteCode))
+            if (!string.IsNullOrEmpty(RoomId))
             {
-                // 通过邀请码加入
-                _room = await MockApi.GetRoomByInviteCode(InviteCode);
-                if (_room != null)
-                {
-                    RoomId = _room.Id;
-                }
+                _room = await ApiService.GetRoom(RoomId);
             }
-            else if (!string.IsNullOrEmpty(RoomId))
-            {
-                _room = await MockApi.GetRoom(RoomId);
-            }
+            // 注意：Real API 不支持通过 InviteCode 查找房间
+            // InviteCode 功能仅在 Mock API 中可用（用于 GitHub Pages 演示）
         }
         catch
         {
@@ -198,7 +191,7 @@ else
         _joining = true;
         try
         {
-            var participant = await MockApi.JoinRoom(RoomId, _joinModel.Name);
+            var participant = await ApiService.JoinRoom(RoomId, _joinModel.Name);
             if (participant != null)
             {
                 _currentParticipantId = participant.Id;
@@ -236,7 +229,7 @@ else
 
         try
         {
-            await MockApi.LeaveRoom(RoomId, participantId);
+            await ApiService.LeaveRoom(RoomId, participantId);
             await Message.Success("参与者已移除");
             await LoadRoom();
         }

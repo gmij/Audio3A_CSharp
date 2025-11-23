@@ -1,5 +1,6 @@
 @page "/call/{RoomId}/{ParticipantId}"
-@inject MockApiService MockApi
+@using Audio3A.Web.Components
+@inject IApiService ApiService
 @inject AudioCallService AudioService
 @inject NavigationManager Navigation
 @inject IMessageService Message
@@ -22,6 +23,26 @@
             <div class="call-info">
                 <Badge Status="processing" Text="@($"{_callDuration:hh\\:mm\\:ss}")" />
                 <span style="margin-left: 16px;">参与者: @_room.Participants.Count</span>
+            </div>
+        </div>
+
+        <!-- 波形可视化区域 -->
+        <div class="waveform-section">
+            <div class="waveform-row">
+                <WaveformVisualizer @ref="_inputWaveform" 
+                                  Width="800" 
+                                  Height="100" 
+                                  Label="输入音频波形"
+                                  Color="#1890ff"
+                                  BackgroundColor="rgba(0, 0, 0, 0.3)" />
+            </div>
+            <div class="waveform-row">
+                <WaveformVisualizer @ref="_processedWaveform" 
+                                  Width="800" 
+                                  Height="100" 
+                                  Label="3A 处理后波形"
+                                  Color="#52c41a"
+                                  BackgroundColor="rgba(0, 0, 0, 0.3)" />
             </div>
         </div>
 
@@ -61,6 +82,14 @@
                 <Icon Type="@(AudioService.IsMuted ? "audio-muted" : "audio")" Theme="outline" />
             </Button>
 
+            <Button Type="@ButtonType.Default" 
+                    Shape="circle" 
+                    Size="large"
+                    OnClick="ToggleRecording"
+                    Style="@GetRecordButtonStyle()">
+                <Icon Type="@(AudioService.IsRecording ? "pause-circle" : "video-camera")" Theme="outline" />
+            </Button>
+
             <Button Type="@ButtonType.Primary" 
                     Danger
                     Shape="circle" 
@@ -69,6 +98,29 @@
                     Style="width: 80px; height: 80px; font-size: 32px;">
                 <Icon Type="phone" Theme="outline" Rotate="135" />
             </Button>
+
+            <Dropdown Trigger="@(new Trigger[] { Trigger.Click })" Disabled="@(!_hasRecordedAudio)">
+                <Overlay>
+                    <Menu>
+                        <MenuItem OnClick="DownloadInputAudio">
+                            <Icon Type="download" Theme="outline" />
+                            下载原声音频
+                        </MenuItem>
+                        <MenuItem OnClick="DownloadProcessedAudio">
+                            <Icon Type="download" Theme="outline" />
+                            下载净化后音频
+                        </MenuItem>
+                    </Menu>
+                </Overlay>
+                <ChildContent>
+                    <Button Type="@ButtonType.Default" 
+                            Shape="circle" 
+                            Size="large"
+                            Disabled="@(!_hasRecordedAudio)">
+                        <Icon Type="download" Theme="outline" />
+                    </Button>
+                </ChildContent>
+            </Dropdown>
 
             <Button Type="@ButtonType.Default" 
                     Shape="circle" 
@@ -101,6 +153,19 @@
 
     .call-info {
         color: rgba(255, 255, 255, 0.9);
+    }
+
+    .waveform-section {
+        padding: 16px 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .waveform-row {
+        width: 100%;
+        max-width: 800px;
+        margin: 0 auto;
     }
 
     .call-main {
@@ -155,6 +220,15 @@
         margin-top: 16px;
         font-size: 16px;
     }
+
+    @@keyframes pulse {
+        0%, 100% {
+            opacity: 1;
+        }
+        50% {
+            opacity: 0.6;
+        }
+    }
 </style>
 
 @code {
@@ -164,11 +238,16 @@
     [Parameter]
     public string? ParticipantId { get; set; }
 
-    private MockApiService.RoomDetailInfo? _room;
+    private RoomDetailInfo? _room;
     private string _participantName = "";
     private float _audioLevel = 0;
     private TimeSpan _callDuration = TimeSpan.Zero;
     private System.Timers.Timer? _timer;
+    private bool _hasRecordedAudio = false;
+    
+    // 波形可视化组件引用
+    private WaveformVisualizer? _inputWaveform;
+    private WaveformVisualizer? _processedWaveform;
 
     protected override async Task OnInitializedAsync()
     {
@@ -177,7 +256,7 @@
         // 加载房间信息
         if (!string.IsNullOrEmpty(RoomId))
         {
-            _room = await MockApi.GetRoom(RoomId);
+            _room = await ApiService.GetRoom(RoomId);
             Console.WriteLine($"Call.razor: Room loaded - {_room?.Name}, Participants={_room?.Participants.Count}");
             
             if (_room != null)
@@ -201,6 +280,8 @@
 
                 // 注册事件
                 AudioService.OnAudioLevel += OnAudioLevel;
+                AudioService.OnInputWaveform += OnInputWaveform;
+                AudioService.OnProcessedWaveform += OnProcessedWaveform;
                 AudioService.OnError += OnError;
                 Console.WriteLine("Call.razor: Event handlers registered");
 
@@ -236,10 +317,84 @@
         });
     }
 
+    private void OnInputWaveform(byte[] waveformData)
+    {
+        InvokeAsync(async () =>
+        {
+            if (_inputWaveform != null)
+            {
+                await _inputWaveform.UpdateWaveformAsync(waveformData);
+            }
+        });
+    }
+
+    private void OnProcessedWaveform(byte[] waveformData)
+    {
+        InvokeAsync(async () =>
+        {
+            if (_processedWaveform != null)
+            {
+                await _processedWaveform.UpdateWaveformAsync(waveformData);
+            }
+        });
+    }
+
     private async Task ToggleMute()
     {
         await AudioService.ToggleMuteAsync();
         await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ToggleRecording()
+    {
+        if (AudioService.IsRecording)
+        {
+            var stopped = await AudioService.StopRecordingAsync();
+            if (stopped)
+            {
+                _hasRecordedAudio = true;
+                await Message.Success("录制已停止");
+            }
+        }
+        else
+        {
+            var started = await AudioService.StartRecordingAsync();
+            if (started)
+            {
+                await Message.Info("开始录制音频...");
+            }
+            else
+            {
+                await Message.Error("无法开始录制");
+            }
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task DownloadInputAudio()
+    {
+        var success = await AudioService.DownloadInputAudioAsync();
+        if (success)
+        {
+            await Message.Success("原声音频下载成功");
+        }
+        else
+        {
+            await Message.Error("下载失败，请先录制音频");
+        }
+    }
+
+    private async Task DownloadProcessedAudio()
+    {
+        var success = await AudioService.DownloadProcessedAudioAsync();
+        if (success)
+        {
+            await Message.Success("净化后音频下载成功");
+        }
+        else
+        {
+            await Message.Error("下载失败，请先录制音频");
+        }
     }
 
     private async Task EndCall()
@@ -249,7 +404,7 @@
         
         if (!string.IsNullOrEmpty(RoomId) && !string.IsNullOrEmpty(ParticipantId))
         {
-            await MockApi.LeaveRoom(RoomId, ParticipantId);
+            await ApiService.LeaveRoom(RoomId, ParticipantId);
         }
 
         Navigation.NavigateTo(Navigation.ToAbsoluteUri("rooms").ToString(), forceLoad: false);
@@ -267,11 +422,18 @@
         return AudioService.IsMuted ? "background-color: #ff4d4f; color: white;" : "";
     }
 
+    private string GetRecordButtonStyle()
+    {
+        return AudioService.IsRecording ? "background-color: #ff4d4f; color: white; animation: pulse 1.5s infinite;" : "";
+    }
+
     public async ValueTask DisposeAsync()
     {
         _timer?.Dispose();
 
         AudioService.OnAudioLevel -= OnAudioLevel;
+        AudioService.OnInputWaveform -= OnInputWaveform;
+        AudioService.OnProcessedWaveform -= OnProcessedWaveform;
         AudioService.OnError -= OnError;
 
         if (AudioService.IsConnected)

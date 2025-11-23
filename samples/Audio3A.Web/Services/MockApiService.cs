@@ -6,12 +6,12 @@ namespace Audio3A.Web.Services;
 /// 模拟 API 服务（用于 GitHub Pages 演示）
 /// 在客户端内存中模拟服务器端 API 的功能
 /// </summary>
-public class MockApiService
+public class MockApiService : IApiService
 {
-    private readonly ConcurrentDictionary<string, RoomData> _rooms = new();
-    private readonly ConcurrentDictionary<string, ParticipantData> _participants = new();
+    private readonly ConcurrentDictionary<string, InternalRoomData> _rooms = new();
+    private readonly ConcurrentDictionary<string, InternalParticipantData> _participants = new();
 
-    public class RoomData
+    private class InternalRoomData
     {
         public string Id { get; set; } = Guid.NewGuid().ToString();
         public string Name { get; set; } = string.Empty;
@@ -34,7 +34,7 @@ public class MockApiService
         }
     }
 
-    public class ParticipantData
+    private class InternalParticipantData
     {
         public string Id { get; set; } = Guid.NewGuid().ToString();
         public string Name { get; set; } = string.Empty;
@@ -44,17 +44,10 @@ public class MockApiService
         public bool Enable3A { get; set; }
     }
 
-    public class StatsData
-    {
-        public int TotalRooms { get; set; }
-        public int ActiveRooms { get; set; }
-        public int TotalParticipants { get; set; }
-    }
-
     // 创建房间
     public Task<RoomData> CreateRoom(string name, int maxParticipants, bool enableAec, bool enableAgc, bool enableAns)
     {
-        var room = new RoomData
+        var room = new InternalRoomData
         {
             Name = name,
             MaxParticipants = maxParticipants,
@@ -63,7 +56,17 @@ public class MockApiService
             EnableAns = enableAns
         };
         _rooms.TryAdd(room.Id, room);
-        return Task.FromResult(room);
+        return Task.FromResult(new RoomData
+        {
+            Id = room.Id,
+            Name = room.Name,
+            State = room.State,
+            MaxParticipants = room.MaxParticipants,
+            CreatedAt = room.CreatedAt,
+            EnableAec = room.EnableAec,
+            EnableAgc = room.EnableAgc,
+            EnableAns = room.EnableAns
+        });
     }
 
     // 获取所有房间
@@ -79,16 +82,6 @@ public class MockApiService
             CreatedAt = r.CreatedAt
         }).ToList();
         return Task.FromResult(rooms);
-    }
-
-    public class RoomInfo
-    {
-        public string Id { get; set; } = string.Empty;
-        public string Name { get; set; } = string.Empty;
-        public string State { get; set; } = string.Empty;
-        public int ParticipantCount { get; set; }
-        public int MaxParticipants { get; set; }
-        public DateTime CreatedAt { get; set; }
     }
 
     // 获取房间详情
@@ -128,30 +121,6 @@ public class MockApiService
         return Task.FromResult<RoomDetailInfo?>(detail);
     }
 
-    public class RoomDetailInfo
-    {
-        public string Id { get; set; } = string.Empty;
-        public string Name { get; set; } = string.Empty;
-        public string State { get; set; } = string.Empty;
-        public int ParticipantCount { get; set; }
-        public int MaxParticipants { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public string InviteCode { get; set; } = string.Empty;
-        public bool EnableAec { get; set; }
-        public bool EnableAgc { get; set; }
-        public bool EnableAns { get; set; }
-        public List<ParticipantInfo> Participants { get; set; } = new();
-    }
-
-    public class ParticipantInfo
-    {
-        public string Id { get; set; } = string.Empty;
-        public string Name { get; set; } = string.Empty;
-        public string State { get; set; } = string.Empty;
-        public DateTime JoinedAt { get; set; }
-        public bool Enable3A { get; set; }
-    }
-
     // 通过邀请码查找房间
     public Task<RoomDetailInfo?> GetRoomByInviteCode(string inviteCode)
     {
@@ -186,7 +155,7 @@ public class MockApiService
         if (room.MaxParticipants > 0 && room.ParticipantIds.Count >= room.MaxParticipants)
             return Task.FromResult<ParticipantData?>(null);
 
-        var participant = new ParticipantData
+        var participant = new InternalParticipantData
         {
             Name = name,
             RoomId = roomId,
@@ -196,7 +165,15 @@ public class MockApiService
         _participants.TryAdd(participant.Id, participant);
         room.ParticipantIds.Add(participant.Id);
 
-        return Task.FromResult<ParticipantData?>(participant);
+        return Task.FromResult<ParticipantData?>(new ParticipantData
+        {
+            Id = participant.Id,
+            Name = participant.Name,
+            RoomId = participant.RoomId,
+            State = participant.State,
+            JoinedAt = participant.JoinedAt,
+            Enable3A = participant.Enable3A
+        });
     }
 
     // 离开房间

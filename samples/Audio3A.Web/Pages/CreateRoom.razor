@@ -1,5 +1,5 @@
 @page "/rooms/create"
-@inject MockApiService MockApi
+@inject IApiService ApiService
 @inject NavigationManager Navigation
 @inject IMessageService Message
 
@@ -82,7 +82,7 @@
         _submitting = true;
         try
         {
-            var room = await MockApi.CreateRoom(
+            var room = await ApiService.CreateRoom(
                 _model.Name,
                 _model.MaxParticipants,
                 _model.EnableAec,
@@ -90,7 +90,7 @@
                 _model.EnableAns
             );
 
-            await Message.Success($"房间创建成功！邀请码: {room.InviteCode}");
+            await Message.Success("房间创建成功！");
             Navigation.NavigateTo(Navigation.ToAbsoluteUri($"rooms/{room.Id}").ToString(), forceLoad: false);
         }
         catch (Exception ex)

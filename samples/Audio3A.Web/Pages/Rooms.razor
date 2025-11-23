@@ -1,5 +1,5 @@
 @page "/rooms"
-@inject MockApiService MockApi
+@inject IApiService ApiService
 @inject NavigationManager Navigation
 @inject IMessageService Message
 
@@ -71,7 +71,7 @@ else
 }
 
 @code {
-    private List<MockApiService.RoomInfo> _rooms = new();
+    private List<RoomInfo> _rooms = new();
     private bool _loading = true;
 
     protected override async Task OnInitializedAsync()
@@ -84,11 +84,11 @@ else
         _loading = true;
         try
         {
-            _rooms = await MockApi.GetRooms();
+            _rooms = await ApiService.GetRooms();
         }
         catch
         {
-            _rooms = new List<MockApiService.RoomInfo>();
+            _rooms = new List<RoomInfo>();
         }
         finally
         {
@@ -110,7 +110,7 @@ else
     {
         try
         {
-            await MockApi.DeleteRoom(roomId);
+            await ApiService.DeleteRoom(roomId);
             await Message.Success("房间已删除");
             await LoadRooms();
         }

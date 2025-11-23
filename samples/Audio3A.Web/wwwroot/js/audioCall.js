@@ -12,6 +12,13 @@ let inputWaveformBuffer = [];
 let processedWaveformBuffer = [];
 const WAVEFORM_SAMPLE_SIZE = 200; // 波形数据点数量
 
+// 用于音频录制
+let inputAudioRecorder = null;
+let processedAudioRecorder = null;
+let inputAudioChunks = [];
+let processedAudioChunks = [];
+let isRecording = false;
+
 export function initialize(dotNetReference) {
     dotNetRef = dotNetReference;
     console.log('Audio call module initialized');
@@ -39,6 +46,23 @@ export async function startCall(roomId, enable3A) {
         localStream = await navigator.mediaDevices.getUserMedia(constraints);
         console.log('Microphone access granted, tracks:', localStream.getAudioTracks().length);
         
+        // 设置音频录制器（原始输入）
+        try {
+            inputAudioRecorder = new MediaRecorder(localStream, {
+                mimeType: 'audio/webm;codecs=opus'
+            });
+            
+            inputAudioRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    inputAudioChunks.push(event.data);
+                }
+            };
+            
+            console.log('Input audio recorder initialized');
+        } catch (e) {
+            console.warn('Could not initialize input audio recorder:', e);
+        }
+        
         // 创建音频上下文用于分析音频级别
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
         console.log('AudioContext created, state:', audioContext.state);
@@ -56,6 +80,26 @@ export async function startCall(roomId, enable3A) {
         source.connect(analyser);
         analyser.connect(scriptProcessor);
         scriptProcessor.connect(audioContext.destination);
+        
+        // 创建处理后音频的录制器（连接到 destination）
+        try {
+            const destStream = audioContext.createMediaStreamDestination();
+            scriptProcessor.connect(destStream);
+            
+            processedAudioRecorder = new MediaRecorder(destStream.stream, {
+                mimeType: 'audio/webm;codecs=opus'
+            });
+            
+            processedAudioRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    processedAudioChunks.push(event.data);
+                }
+            };
+            
+            console.log('Processed audio recorder initialized');
+        } catch (e) {
+            console.warn('Could not initialize processed audio recorder:', e);
+        }
         
         // 处理音频数据
         scriptProcessor.onaudioprocess = function(e) {
@@ -97,6 +141,9 @@ export async function startCall(roomId, enable3A) {
 
 export function endCall() {
     isActive = false;
+
+    // 停止录制
+    stopRecording();
 
     if (scriptProcessor) {
         scriptProcessor.disconnect();
@@ -207,4 +254,116 @@ function collectWaveformData(audioData, buffer, type) {
             }
         }
     }
+}
+
+// 开始录制音频
+export function startRecording() {
+    if (!isActive || isRecording) {
+        console.warn('Cannot start recording: isActive=' + isActive + ', isRecording=' + isRecording);
+        return false;
+    }
+    
+    try {
+        // 清空之前的录音数据
+        inputAudioChunks = [];
+        processedAudioChunks = [];
+        
+        // 开始录制
+        if (inputAudioRecorder && inputAudioRecorder.state !== 'recording') {
+            inputAudioRecorder.start(100); // 每100ms收集一次数据
+        }
+        
+        if (processedAudioRecorder && processedAudioRecorder.state !== 'recording') {
+            processedAudioRecorder.start(100);
+        }
+        
+        isRecording = true;
+        console.log('Recording started');
+        return true;
+    } catch (e) {
+        console.error('Failed to start recording:', e);
+        return false;
+    }
+}
+
+// 停止录制音频
+export function stopRecording() {
+    if (!isRecording) {
+        return false;
+    }
+    
+    try {
+        if (inputAudioRecorder && inputAudioRecorder.state === 'recording') {
+            inputAudioRecorder.stop();
+        }
+        
+        if (processedAudioRecorder && processedAudioRecorder.state === 'recording') {
+            processedAudioRecorder.stop();
+        }
+        
+        isRecording = false;
+        console.log('Recording stopped');
+        return true;
+    } catch (e) {
+        console.error('Failed to stop recording:', e);
+        return false;
+    }
+}
+
+// 下载输入音频
+export function downloadInputAudio(filename) {
+    if (inputAudioChunks.length === 0) {
+        console.warn('No input audio data to download');
+        return false;
+    }
+    
+    try {
+        const blob = new Blob(inputAudioChunks, { type: 'audio/webm' });
+        downloadBlob(blob, filename || 'input-audio.webm');
+        console.log('Input audio downloaded');
+        return true;
+    } catch (e) {
+        console.error('Failed to download input audio:', e);
+        return false;
+    }
+}
+
+// 下载处理后音频
+export function downloadProcessedAudio(filename) {
+    if (processedAudioChunks.length === 0) {
+        console.warn('No processed audio data to download');
+        return false;
+    }
+    
+    try {
+        const blob = new Blob(processedAudioChunks, { type: 'audio/webm' });
+        downloadBlob(blob, filename || 'processed-audio.webm');
+        console.log('Processed audio downloaded');
+        return true;
+    } catch (e) {
+        console.error('Failed to download processed audio:', e);
+        return false;
+    }
+}
+
+// 辅助函数：下载 Blob
+function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    
+    // 清理
+    setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }, 100);
+}
+
+// 检查是否正在录制
+export function isCurrentlyRecording() {
+    return isRecording;
 }

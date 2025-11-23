@@ -82,6 +82,14 @@
                 <Icon Type="@(AudioService.IsMuted ? "audio-muted" : "audio")" Theme="outline" />
             </Button>
 
+            <Button Type="@ButtonType.Default" 
+                    Shape="circle" 
+                    Size="large"
+                    OnClick="ToggleRecording"
+                    Style="@GetRecordButtonStyle()">
+                <Icon Type="@(AudioService.IsRecording ? "pause-circle" : "video-camera")" Theme="outline" />
+            </Button>
+
             <Button Type="@ButtonType.Primary" 
                     Danger
                     Shape="circle" 
@@ -90,6 +98,29 @@
                     Style="width: 80px; height: 80px; font-size: 32px;">
                 <Icon Type="phone" Theme="outline" Rotate="135" />
             </Button>
+
+            <Dropdown Trigger="@(new Trigger[] { Trigger.Click })" Disabled="@(!_hasRecordedAudio)">
+                <Overlay>
+                    <Menu>
+                        <MenuItem OnClick="DownloadInputAudio">
+                            <Icon Type="download" Theme="outline" />
+                            下载原声音频
+                        </MenuItem>
+                        <MenuItem OnClick="DownloadProcessedAudio">
+                            <Icon Type="download" Theme="outline" />
+                            下载净化后音频
+                        </MenuItem>
+                    </Menu>
+                </Overlay>
+                <ChildContent>
+                    <Button Type="@ButtonType.Default" 
+                            Shape="circle" 
+                            Size="large"
+                            Disabled="@(!_hasRecordedAudio)">
+                        <Icon Type="download" Theme="outline" />
+                    </Button>
+                </ChildContent>
+            </Dropdown>
 
             <Button Type="@ButtonType.Default" 
                     Shape="circle" 
@@ -189,6 +220,15 @@
         margin-top: 16px;
         font-size: 16px;
     }
+
+    @@keyframes pulse {
+        0%, 100% {
+            opacity: 1;
+        }
+        50% {
+            opacity: 0.6;
+        }
+    }
 </style>
 
 @code {
@@ -203,6 +243,7 @@
     private float _audioLevel = 0;
     private TimeSpan _callDuration = TimeSpan.Zero;
     private System.Timers.Timer? _timer;
+    private bool _hasRecordedAudio = false;
     
     // 波形可视化组件引用
     private WaveformVisualizer? _inputWaveform;
@@ -304,6 +345,58 @@
         await InvokeAsync(StateHasChanged);
     }
 
+    private async Task ToggleRecording()
+    {
+        if (AudioService.IsRecording)
+        {
+            var stopped = await AudioService.StopRecordingAsync();
+            if (stopped)
+            {
+                _hasRecordedAudio = true;
+                await Message.Success("录制已停止");
+            }
+        }
+        else
+        {
+            var started = await AudioService.StartRecordingAsync();
+            if (started)
+            {
+                await Message.Info("开始录制音频...");
+            }
+            else
+            {
+                await Message.Error("无法开始录制");
+            }
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task DownloadInputAudio()
+    {
+        var success = await AudioService.DownloadInputAudioAsync();
+        if (success)
+        {
+            await Message.Success("原声音频下载成功");
+        }
+        else
+        {
+            await Message.Error("下载失败，请先录制音频");
+        }
+    }
+
+    private async Task DownloadProcessedAudio()
+    {
+        var success = await AudioService.DownloadProcessedAudioAsync();
+        if (success)
+        {
+            await Message.Success("净化后音频下载成功");
+        }
+        else
+        {
+            await Message.Error("下载失败，请先录制音频");
+        }
+    }
+
     private async Task EndCall()
     {
         _timer?.Stop();
@@ -327,6 +420,11 @@
     private string GetMuteButtonStyle()
     {
         return AudioService.IsMuted ? "background-color: #ff4d4f; color: white;" : "";
+    }
+
+    private string GetRecordButtonStyle()
+    {
+        return AudioService.IsRecording ? "background-color: #ff4d4f; color: white; animation: pulse 1.5s infinite;" : "";
     }
 
     public async ValueTask DisposeAsync()

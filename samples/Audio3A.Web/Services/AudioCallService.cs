@@ -21,6 +21,7 @@ public class AudioCallService : IAsyncDisposable
 
     public bool IsMuted { get; private set; }
     public bool IsConnected { get; private set; }
+    public bool IsRecording { get; private set; }
 
     public AudioCallService(IJSRuntime jsRuntime)
     {
@@ -121,6 +122,90 @@ public class AudioCallService : IAsyncDisposable
         catch (Exception ex)
         {
             Console.WriteLine($"Failed to toggle mute: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 开始录制音频
+    /// </summary>
+    public async Task<bool> StartRecordingAsync()
+    {
+        try
+        {
+            if (_module != null && IsConnected)
+            {
+                var result = await _module.InvokeAsync<bool>("startRecording");
+                IsRecording = result;
+                return result;
+            }
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to start recording: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 停止录制音频
+    /// </summary>
+    public async Task<bool> StopRecordingAsync()
+    {
+        try
+        {
+            if (_module != null && IsConnected)
+            {
+                var result = await _module.InvokeAsync<bool>("stopRecording");
+                IsRecording = !result;
+                return result;
+            }
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to stop recording: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 下载输入音频
+    /// </summary>
+    public async Task<bool> DownloadInputAudioAsync(string? filename = null)
+    {
+        try
+        {
+            if (_module != null)
+            {
+                return await _module.InvokeAsync<bool>("downloadInputAudio", filename ?? $"input-audio-{DateTime.Now:yyyyMMdd-HHmmss}.webm");
+            }
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to download input audio: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 下载处理后音频
+    /// </summary>
+    public async Task<bool> DownloadProcessedAudioAsync(string? filename = null)
+    {
+        try
+        {
+            if (_module != null)
+            {
+                return await _module.InvokeAsync<bool>("downloadProcessedAudio", filename ?? $"processed-audio-{DateTime.Now:yyyyMMdd-HHmmss}.webm");
+            }
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to download processed audio: {ex.Message}");
+            return false;
         }
     }
 

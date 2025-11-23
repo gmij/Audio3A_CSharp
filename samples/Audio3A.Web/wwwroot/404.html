@@ -12,14 +12,23 @@
             var search = window.location.search;
             var hash = window.location.hash;
             
-            // Extract the base path (e.g., /Audio3A_CSharp/)
-            var segments = path.split('/').filter(function(segment) { return segment; });
-            var basePath = '/' + segments[0] + '/';
+            // Expected base path for this app
+            var basePath = '/Audio3A_CSharp/';
             
             // Get the route after the base path
             var route = '';
-            if (segments.length > 1) {
-                route = '/' + segments.slice(1).join('/');
+            if (path.indexOf(basePath) === 0) {
+                // Path already contains base path, extract the route
+                route = path.substring(basePath.length);
+            } else {
+                // Path doesn't contain base path, this shouldn't happen but handle it
+                // Remove leading slash and use as route
+                route = path.replace(/^\//, '');
+            }
+            
+            // Ensure route starts with /
+            if (route && route[0] !== '/') {
+                route = '/' + route;
             }
             
             // Redirect to index.html with the route preserved

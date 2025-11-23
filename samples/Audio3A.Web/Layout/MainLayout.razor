@@ -1,0 +1,38 @@
+﻿@inherits LayoutComponentBase
+
+<Layout Style="min-height: 100vh;">
+    <Header Style="background: #001529; padding: 0;">
+        <div style="display: flex; align-items: center; padding: 0 24px;">
+            <div style="color: white; font-size: 20px; font-weight: bold;">
+                🎙️ Audio3A 实时语音通话管理系统
+            </div>
+        </div>
+    </Header>
+    <Layout>
+        <Sider Width="250" Style="background: #fff;">
+            <Menu Mode="MenuMode.Inline" Style="height: 100%;">
+                <MenuItem Key="dashboard">
+                    <a href="" style="text-decoration: none; color: inherit; display: flex; align-items: center;">
+                        <Icon Type="dashboard" Theme="outline" />
+                        <span style="margin-left: 8px;">控制台</span>
+                    </a>
+                </MenuItem>
+                <MenuItem Key="rooms">
+                    <a href="rooms" style="text-decoration: none; color: inherit; display: flex; align-items: center;">
+                        <Icon Type="team" Theme="outline" />
+                        <span style="margin-left: 8px;">房间管理</span>
+                    </a>
+                </MenuItem>
+                <MenuItem Key="create">
+                    <a href="rooms/create" style="text-decoration: none; color: inherit; display: flex; align-items: center;">
+                        <Icon Type="plus-circle" Theme="outline" />
+                        <span style="margin-left: 8px;">创建房间</span>
+                    </a>
+                </MenuItem>
+            </Menu>
+        </Sider>
+        <Content Style="padding: 24px; background: #f0f2f5;">
+            @Body
+        </Content>
+    </Layout>
+</Layout>

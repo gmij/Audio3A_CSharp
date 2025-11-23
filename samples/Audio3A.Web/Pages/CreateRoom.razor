@@ -1,0 +1,110 @@
+@page "/rooms/create"
+@inject MockApiService MockApi
+@inject NavigationManager Navigation
+@inject IMessageService Message
+
+<PageTitle>创建房间 - Audio3A</PageTitle>
+
+<PageHeader Title="创建新房间" OnBack="GoBack" />
+
+<Card Style="max-width: 800px; margin: 0 auto;">
+    <Form Model="@_model" OnFinish="OnFinish">
+        <FormItem Label="房间名称">
+            <Input @bind-Value="@_model.Name" Placeholder="请输入房间名称" />
+        </FormItem>
+
+        <FormItem Label="最大参与者数">
+            <AntDesign.InputNumber @bind-Value="@_model.MaxParticipants" Min="0" Max="100" 
+                         Placeholder="0 表示无限制" Style="width: 100%;" />
+            <div style="color: #999; font-size: 12px; margin-top: 4px;">
+                设置为 0 表示不限制参与者数量
+            </div>
+        </FormItem>
+
+        <Divider>音频处理设置</Divider>
+
+        <FormItem>
+            <Checkbox @bind-Checked="@_model.EnableAec">
+                启用回声消除 (AEC)
+            </Checkbox>
+            <div style="color: #999; font-size: 12px; margin-left: 24px;">
+                消除扬声器播放引起的麦克风回声
+            </div>
+        </FormItem>
+
+        <FormItem>
+            <Checkbox @bind-Checked="@_model.EnableAgc">
+                启用自动增益控制 (AGC)
+            </Checkbox>
+            <div style="color: #999; font-size: 12px; margin-left: 24px;">
+                自动调节音频音量，保持一致的输出电平
+            </div>
+        </FormItem>
+
+        <FormItem>
+            <Checkbox @bind-Checked="@_model.EnableAns">
+                启用噪声抑制 (ANS)
+            </Checkbox>
+            <div style="color: #999; font-size: 12px; margin-left: 24px;">
+                减少背景噪声，同时保留语音
+            </div>
+        </FormItem>
+
+        <FormItem>
+            <Button Type="@ButtonType.Primary" HtmlType="submit" Loading="@_submitting" Block>
+                创建房间
+            </Button>
+        </FormItem>
+    </Form>
+</Card>
+
+@code {
+    private class CreateRoomModel
+    {
+        public string Name { get; set; } = string.Empty;
+        public int MaxParticipants { get; set; } = 0;
+        public bool EnableAec { get; set; } = true;
+        public bool EnableAgc { get; set; } = true;
+        public bool EnableAns { get; set; } = true;
+    }
+
+    private CreateRoomModel _model = new();
+    private bool _submitting = false;
+
+    private async Task OnFinish()
+    {
+        if (string.IsNullOrWhiteSpace(_model.Name))
+        {
+            await Message.Error("请输入房间名称");
+            return;
+        }
+
+        _submitting = true;
+        try
+        {
+            var room = await MockApi.CreateRoom(
+                _model.Name,
+                _model.MaxParticipants,
+                _model.EnableAec,
+                _model.EnableAgc,
+                _model.EnableAns
+            );
+
+            await Message.Success($"房间创建成功！邀请码: {room.InviteCode}");
+            Navigation.NavigateTo(Navigation.ToAbsoluteUri($"rooms/{room.Id}").ToString(), forceLoad: false);
+        }
+        catch (Exception ex)
+        {
+            await Message.Error($"创建失败: {ex.Message}");
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo(Navigation.ToAbsoluteUri("rooms").ToString(), forceLoad: false);
+    }
+}

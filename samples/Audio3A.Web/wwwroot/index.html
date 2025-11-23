@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Audio3A 实时语音通话管理系统</title>
+    <base href="/" />
+    <link href="_content/AntDesign/css/ant-design-blazor.css" rel="stylesheet" />
+    <link rel="stylesheet" href="css/app.css" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link href="Audio3A.Web.styles.css" rel="stylesheet" />
+    <script>
+        // GitHub Pages SPA redirect handler
+        // Check if we have a redirect parameter from 404.html
+        (function() {
+            var query = window.location.search;
+            if (query && query.indexOf('?redirect=') === 0) {
+                var redirect = decodeURIComponent(query.substring(10));
+                // Use history.replaceState to restore the original URL without page reload
+                window.history.replaceState(null, null, redirect);
+            }
+        })();
+    </script>
+</head>
+
+<body>
+    <div id="app">
+        <div style="display: flex; justify-content: center; align-items: center; height: 100vh;">
+            <div style="text-align: center;">
+                <div class="ant-spin ant-spin-lg ant-spin-spinning">
+                    <span class="ant-spin-dot ant-spin-dot-spin">
+                        <i class="ant-spin-dot-item"></i>
+                        <i class="ant-spin-dot-item"></i>
+                        <i class="ant-spin-dot-item"></i>
+                        <i class="ant-spin-dot-item"></i>
+                    </span>
+                </div>
+                <div style="margin-top: 16px; color: #1890ff;">加载中...</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="blazor-error-ui">
+        发生了一个未处理的错误。
+        <a href="" class="reload">重新加载</a>
+        <a class="dismiss">🗙</a>
+    </div>
+    <script src="_content/AntDesign/js/ant-design-blazor.js"></script>
+    <script src="_framework/blazor.webassembly.js"></script>
+</body>
+
+</html>

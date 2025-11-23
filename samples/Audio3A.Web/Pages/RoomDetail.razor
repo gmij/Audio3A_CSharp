@@ -1,0 +1,266 @@
+@page "/rooms/{RoomId}"
+@page "/join/{InviteCode}"
+@inject MockApiService MockApi
+@inject NavigationManager Navigation
+@inject IMessageService Message
+
+<PageTitle>房间详情 - Audio3A</PageTitle>
+
+<PageHeader Title="@_room?.Name" SubTitle="@GetSubTitle()" OnBack="GoBack" />
+
+@if (_loading)
+{
+    <div style="text-align: center; padding: 50px;">
+        <Spin Size="large" />
+    </div>
+}
+else if (_room == null)
+{
+    <Result Status="404" Title="房间不存在" SubTitle="该房间可能已被删除">
+        <Extra>
+            <Button Type="@ButtonType.Primary" OnClick="GoBack">返回列表</Button>
+        </Extra>
+    </Result>
+}
+else
+{
+    <Row Gutter="16">
+        <AntDesign.Col Span="12">
+            <Card Title="房间信息">
+                <Descriptions Bordered Column="1">
+                    <DescriptionsItem Title="房间名称">@_room.Name</DescriptionsItem>
+                    <DescriptionsItem Title="房间 ID">@_room.Id.Substring(0, Math.Min(8, _room.Id.Length))</DescriptionsItem>
+                    <DescriptionsItem Title="邀请码">
+                        <Space>
+                            <SpaceItem>
+                                <Text Copyable Code Strong>@_room.InviteCode</Text>
+                            </SpaceItem>
+                        </Space>
+                    </DescriptionsItem>
+                    <DescriptionsItem Title="邀请链接">
+                        <Text Copyable Code Style="font-size: 12px;">@GetInviteLink()</Text>
+                    </DescriptionsItem>
+                    <DescriptionsItem Title="状态">
+                        <Badge Status="@(_room.State == "Active" ? "success" : "default")" Text="@_room.State" />
+                    </DescriptionsItem>
+                    <DescriptionsItem Title="参与者数量">@_room.ParticipantCount / @(_room.MaxParticipants > 0 ? _room.MaxParticipants.ToString() : "∞")</DescriptionsItem>
+                    <DescriptionsItem Title="音频处理">
+                        @if (_room.EnableAec) { <Tag Color="green">AEC</Tag> }
+                        @if (_room.EnableAgc) { <Tag Color="green">AGC</Tag> }
+                        @if (_room.EnableAns) { <Tag Color="green">ANS</Tag> }
+                        @if (!_room.EnableAec && !_room.EnableAgc && !_room.EnableAns) { <span style="color: #999;">未启用</span> }
+                    </DescriptionsItem>
+                    <DescriptionsItem Title="创建时间">@_room.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</DescriptionsItem>
+                </Descriptions>
+            </Card>
+        </AntDesign.Col>
+
+        <AntDesign.Col Span="12">
+            <Card Title="加入房间">
+                @if (_currentParticipantId != null)
+                {
+                    <Result Status="success"
+                            Title="您已在房间中"
+                            SubTitle="@($"您以 {_currentParticipantName} 的身份加入了房间")">
+                        <Extra>
+                            <Button Type="@ButtonType.Primary" Size="large" OnClick="StartCall">
+                                <Icon Type="phone" Theme="outline" />
+                                开始通话
+                            </Button>
+                        </Extra>
+                    </Result>
+                }
+                else
+                {
+                    <Form Model="@_joinModel" OnFinish="OnJoin">
+                        <FormItem Label="您的名称">
+                            <Input @bind-Value="@_joinModel.Name" Placeholder="请输入您的名称" />
+                        </FormItem>
+                        <FormItem>
+                            <Button Type="@ButtonType.Primary" HtmlType="submit" Loading="@_joining" Block>
+                                <Icon Type="login" Theme="outline" />
+                                加入房间
+                            </Button>
+                        </FormItem>
+                    </Form>
+                }
+            </Card>
+        </AntDesign.Col>
+    </Row>
+
+    <Card Title="参与者列表" Style="margin-top: 16px;">
+        @if (_room.Participants.Count == 0)
+        {
+            <Empty>
+                <DescriptionTemplate>暂无参与者</DescriptionTemplate>
+            </Empty>
+        }
+        else
+        {
+            <Table TItem="MockApiService.ParticipantInfo" DataSource="@_room.Participants" Size="TableSize.Small">
+                <Column Title="名称" @bind-Field="@context.Name" />
+                <Column Title="状态" @bind-Field="@context.State">
+                    <Badge Status="@(context.State == "Connected" ? "success" : "default")" Text="@context.State" />
+                </Column>
+                <Column Title="3A 处理" @bind-Field="@context.Enable3A">
+                    @(context.Enable3A ? "✓ 已启用" : "✗ 未启用")
+                </Column>
+                <Column Title="加入时间" @bind-Field="@context.JoinedAt">
+                    @context.JoinedAt.ToString("HH:mm:ss")
+                </Column>
+                <ActionColumn Title="操作">
+                    @if (context.Id == _currentParticipantId)
+                    {
+                        <Button Type="@ButtonType.Primary" Size="small" OnClick="StartCall">
+                            <Icon Type="phone" Theme="outline" />
+                            开始通话
+                        </Button>
+                    }
+                    else
+                    {
+                        <Popconfirm Title="确定要移除该参与者吗？" OnConfirm="() => RemoveParticipant(context.Id)">
+                            <Button Type="@ButtonType.Link" Danger Size="small">移除</Button>
+                        </Popconfirm>
+                    }
+                </ActionColumn>
+            </Table>
+        }
+    </Card>
+}
+
+@code {
+    [Parameter]
+    public string? RoomId { get; set; }
+
+    [Parameter]
+    public string? InviteCode { get; set; }
+
+    private class JoinRoomModel
+    {
+        public string Name { get; set; } = string.Empty;
+    }
+
+    private MockApiService.RoomDetailInfo? _room;
+    private JoinRoomModel _joinModel = new();
+    private bool _loading = true;
+    private bool _joining = false;
+    private string? _currentParticipantId;
+    private string? _currentParticipantName;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRoom();
+    }
+
+    private async Task LoadRoom()
+    {
+        _loading = true;
+        try
+        {
+            if (!string.IsNullOrEmpty(InviteCode))
+            {
+                // 通过邀请码加入
+                _room = await MockApi.GetRoomByInviteCode(InviteCode);
+                if (_room != null)
+                {
+                    RoomId = _room.Id;
+                }
+            }
+            else if (!string.IsNullOrEmpty(RoomId))
+            {
+                _room = await MockApi.GetRoom(RoomId);
+            }
+        }
+        catch
+        {
+            _room = null;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OnJoin()
+    {
+        if (string.IsNullOrWhiteSpace(_joinModel.Name))
+        {
+            await Message.Error("请输入您的名称");
+            return;
+        }
+
+        if (string.IsNullOrEmpty(RoomId))
+        {
+            await Message.Error("房间 ID 无效");
+            return;
+        }
+
+        _joining = true;
+        try
+        {
+            var participant = await MockApi.JoinRoom(RoomId, _joinModel.Name);
+            if (participant != null)
+            {
+                _currentParticipantId = participant.Id;
+                _currentParticipantName = participant.Name;
+                await Message.Success("成功加入房间！");
+                await LoadRoom();
+                _joinModel.Name = string.Empty;
+            }
+            else
+            {
+                await Message.Error("加入房间失败，房间可能已满");
+            }
+        }
+        catch (Exception ex)
+        {
+            await Message.Error($"加入失败: {ex.Message}");
+        }
+        finally
+        {
+            _joining = false;
+        }
+    }
+
+    private void StartCall()
+    {
+        if (!string.IsNullOrEmpty(RoomId) && !string.IsNullOrEmpty(_currentParticipantId))
+        {
+            Navigation.NavigateTo(Navigation.ToAbsoluteUri($"call/{RoomId}/{_currentParticipantId}").ToString(), forceLoad: false);
+        }
+    }
+
+    private async Task RemoveParticipant(string participantId)
+    {
+        if (string.IsNullOrEmpty(RoomId)) return;
+
+        try
+        {
+            await MockApi.LeaveRoom(RoomId, participantId);
+            await Message.Success("参与者已移除");
+            await LoadRoom();
+        }
+        catch
+        {
+            await Message.Error("移除失败");
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo(Navigation.ToAbsoluteUri("rooms").ToString(), forceLoad: false);
+    }
+
+    private string GetSubTitle()
+    {
+        if (_room == null) return "";
+        return $"房间 ID: {_room.Id.Substring(0, Math.Min(8, _room.Id.Length))} | 邀请码: {_room.InviteCode}";
+    }
+
+    private string GetInviteLink()
+    {
+        if (_room == null) return "";
+        var baseUri = Navigation.BaseUri.TrimEnd('/');
+        return $"{baseUri}/join/{_room.InviteCode}";
+    }
+}

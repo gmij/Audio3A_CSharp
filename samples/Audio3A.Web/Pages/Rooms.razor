@@ -1,0 +1,122 @@
+@page "/rooms"
+@inject MockApiService MockApi
+@inject NavigationManager Navigation
+@inject IMessageService Message
+
+<PageTitle>房间管理 - Audio3A</PageTitle>
+
+<PageHeader Title="房间管理">
+    <PageHeaderExtra>
+        <Button Type="@ButtonType.Primary" OnClick="CreateRoom">
+            <Icon Type="plus" Theme="outline" />
+            创建房间
+        </Button>
+        <Button OnClick="LoadRooms" Style="margin-left: 8px;">
+            <Icon Type="reload" Theme="outline" />
+            刷新
+        </Button>
+    </PageHeaderExtra>
+</PageHeader>
+
+@if (_loading)
+{
+    <div style="text-align: center; padding: 50px;">
+        <Spin Size="large" />
+    </div>
+}
+else if (_rooms.Count == 0)
+{
+    <Empty>
+        <DescriptionTemplate>暂无房间</DescriptionTemplate>
+        <ChildContent>
+            <Button Type="@ButtonType.Primary" OnClick="CreateRoom">立即创建</Button>
+        </ChildContent>
+    </Empty>
+}
+else
+{
+    <Row Gutter="16">
+        @foreach (var room in _rooms)
+        {
+            <AntDesign.Col Span="8" Style="margin-bottom: 16px;">
+                <Card>
+                    <TitleTemplate>
+                        <Icon Type="home" Theme="outline" />
+                        @room.Name
+                    </TitleTemplate>
+                    <ChildContent>
+                        <Descriptions Column="1" Size="small">
+                            <DescriptionsItem Title="房间ID">@room.Id.Substring(0, 8)</DescriptionsItem>
+                            <DescriptionsItem Title="状态">
+                                <Badge Status="@(room.State == "Active" ? "success" : "default")" Text="@room.State" />
+                            </DescriptionsItem>
+                            <DescriptionsItem Title="参与者">@room.ParticipantCount / @(room.MaxParticipants > 0 ? room.MaxParticipants.ToString() : "∞")</DescriptionsItem>
+                            <DescriptionsItem Title="创建时间">@room.CreatedAt.ToString("yyyy-MM-dd HH:mm")</DescriptionsItem>
+                        </Descriptions>
+                    </ChildContent>
+                    <ActionTemplate>
+                        <CardAction>
+                            <Button Type="@ButtonType.Link" OnClick="() => ViewRoom(room.Id)">查看详情</Button>
+                        </CardAction>
+                        <CardAction>
+                            <Popconfirm Title="确定要删除这个房间吗？" OnConfirm="() => DeleteRoom(room.Id)">
+                                <Button Type="@ButtonType.Link" Danger>删除</Button>
+                            </Popconfirm>
+                        </CardAction>
+                    </ActionTemplate>
+                </Card>
+            </AntDesign.Col>
+        }
+    </Row>
+}
+
+@code {
+    private List<MockApiService.RoomInfo> _rooms = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRooms();
+    }
+
+    private async Task LoadRooms()
+    {
+        _loading = true;
+        try
+        {
+            _rooms = await MockApi.GetRooms();
+        }
+        catch
+        {
+            _rooms = new List<MockApiService.RoomInfo>();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void CreateRoom()
+    {
+        Navigation.NavigateTo(Navigation.ToAbsoluteUri("rooms/create").ToString(), forceLoad: false);
+    }
+
+    private void ViewRoom(string roomId)
+    {
+        Navigation.NavigateTo(Navigation.ToAbsoluteUri($"rooms/{roomId}").ToString(), forceLoad: false);
+    }
+
+    private async Task DeleteRoom(string roomId)
+    {
+        try
+        {
+            await MockApi.DeleteRoom(roomId);
+            await Message.Success("房间已删除");
+            await LoadRooms();
+        }
+        catch
+        {
+            await Message.Error("删除失败");
+        }
+    }
+}

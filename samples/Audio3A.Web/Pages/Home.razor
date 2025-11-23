@@ -1,0 +1,93 @@
+﻿@page "/"
+@inject MockApiService MockApi
+
+<PageTitle>控制台 - Audio3A</PageTitle>
+
+<PageHeader Title="系统概览" />
+
+<Row Gutter="16">
+    <AntDesign.Col Span="8">
+        <Card>
+            <Statistic Title="活跃房间" Value="@_stats.ActiveRooms" Suffix="个">
+                <PrefixTemplate>
+                    <Icon Type="team" Theme="outline" Style="color: #3f8600;" />
+                </PrefixTemplate>
+            </Statistic>
+        </Card>
+    </AntDesign.Col>
+    <AntDesign.Col Span="8">
+        <Card>
+            <Statistic Title="总房间数" Value="@_stats.TotalRooms" Suffix="个">
+                <PrefixTemplate>
+                    <Icon Type="home" Theme="outline" Style="color: #1890ff;" />
+                </PrefixTemplate>
+            </Statistic>
+        </Card>
+    </AntDesign.Col>
+    <AntDesign.Col Span="8">
+        <Card>
+            <Statistic Title="在线参与者" Value="@_stats.TotalParticipants" Suffix="人">
+                <PrefixTemplate>
+                    <Icon Type="user" Theme="outline" Style="color: #cf1322;" />
+                </PrefixTemplate>
+            </Statistic>
+        </Card>
+    </AntDesign.Col>
+</Row>
+
+<div style="margin-top: 24px;">
+    <Card Title="功能特性">
+        <Descriptions Bordered Column="1">
+            <DescriptionsItem Title="多房间管理">支持同时管理多个独立的语音通话房间</DescriptionsItem>
+            <DescriptionsItem Title="多人通话">每个房间支持多人同时在线通话</DescriptionsItem>
+            <DescriptionsItem Title="3A 音频处理">集成回声消除(AEC)、自动增益控制(AGC)、噪声抑制(ANS)</DescriptionsItem>
+            <DescriptionsItem Title="协议支持">WebSocket、WebRTC 或混合协议</DescriptionsItem>
+            <DescriptionsItem Title="实时混音">多路音频流的实时混合处理</DescriptionsItem>
+        </Descriptions>
+    </Card>
+</div>
+
+<div style="margin-top: 24px;">
+    <Card Title="快速开始">
+        <Steps>
+            <Step Title="创建房间" Description="点击左侧菜单'创建房间'开始" />
+            <Step Title="配置参数" Description="设置房间名称和音频处理选项" />
+            <Step Title="邀请参与者" Description="分享房间链接给参与者" />
+            <Step Title="开始通话" Description="享受高质量的语音通话" />
+        </Steps>
+    </Card>
+</div>
+
+@code {
+    private class Stats
+    {
+        public int TotalRooms { get; set; }
+        public int ActiveRooms { get; set; }
+        public int TotalParticipants { get; set; }
+    }
+
+    private Stats _stats = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStats();
+    }
+
+    private async Task LoadStats()
+    {
+        try
+        {
+            var stats = await MockApi.GetStats();
+            _stats = new Stats
+            {
+                TotalRooms = stats.TotalRooms,
+                ActiveRooms = stats.ActiveRooms,
+                TotalParticipants = stats.TotalParticipants
+            };
+        }
+        catch
+        {
+            _stats = new Stats { TotalRooms = 0, ActiveRooms = 0, TotalParticipants = 0 };
+        }
+    }
+}

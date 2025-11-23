@@ -1,5 +1,5 @@
 @page "/call/{RoomId}/{ParticipantId}"
-@inject MockApiService MockApi
+@inject IApiService ApiService
 @inject AudioCallService AudioService
 @inject NavigationManager Navigation
 @inject IMessageService Message
@@ -164,7 +164,7 @@
     [Parameter]
     public string? ParticipantId { get; set; }
 
-    private MockApiService.RoomDetailInfo? _room;
+    private RoomDetailInfo? _room;
     private string _participantName = "";
     private float _audioLevel = 0;
     private TimeSpan _callDuration = TimeSpan.Zero;
@@ -177,7 +177,7 @@
         // 加载房间信息
         if (!string.IsNullOrEmpty(RoomId))
         {
-            _room = await MockApi.GetRoom(RoomId);
+            _room = await ApiService.GetRoom(RoomId);
             Console.WriteLine($"Call.razor: Room loaded - {_room?.Name}, Participants={_room?.Participants.Count}");
             
             if (_room != null)
@@ -249,7 +249,7 @@
         
         if (!string.IsNullOrEmpty(RoomId) && !string.IsNullOrEmpty(ParticipantId))
         {
-            await MockApi.LeaveRoom(RoomId, ParticipantId);
+            await ApiService.LeaveRoom(RoomId, ParticipantId);
         }
 
         Navigation.NavigateTo(Navigation.ToAbsoluteUri("rooms").ToString(), forceLoad: false);

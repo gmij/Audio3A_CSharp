@@ -1,5 +1,5 @@
-﻿@page "/"
-@inject MockApiService MockApi
+@page "/"
+@inject IApiService ApiService
 
 <PageTitle>控制台 - Audio3A</PageTitle>
 
@@ -77,7 +77,7 @@
     {
         try
         {
-            var stats = await MockApi.GetStats();
+            var stats = await ApiService.GetStats();
             _stats = new Stats
             {
                 TotalRooms = stats.TotalRooms,

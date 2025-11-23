@@ -15,6 +15,8 @@ public class AudioCallService : IAsyncDisposable
     public event Action<string>? OnParticipantJoined;
     public event Action<string>? OnParticipantLeft;
     public event Action<string, float>? OnAudioLevel;
+    public event Action<byte[]>? OnInputWaveform;
+    public event Action<byte[]>? OnProcessedWaveform;
     public event Action<string>? OnError;
 
     public bool IsMuted { get; private set; }
@@ -140,6 +142,18 @@ public class AudioCallService : IAsyncDisposable
     {
         Console.WriteLine($"AudioCallService: Received audio level - Participant: {participantId}, Level: {level:F3}");
         OnAudioLevel?.Invoke(participantId, level);
+    }
+
+    [JSInvokable]
+    public void NotifyInputWaveform(byte[] waveformData)
+    {
+        OnInputWaveform?.Invoke(waveformData);
+    }
+
+    [JSInvokable]
+    public void NotifyProcessedWaveform(byte[] waveformData)
+    {
+        OnProcessedWaveform?.Invoke(waveformData);
     }
 
     [JSInvokable]

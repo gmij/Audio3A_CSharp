@@ -1,4 +1,5 @@
 @page "/call/{RoomId}/{ParticipantId}"
+@using Audio3A.Web.Components
 @inject IApiService ApiService
 @inject AudioCallService AudioService
 @inject NavigationManager Navigation
@@ -22,6 +23,26 @@
             <div class="call-info">
                 <Badge Status="processing" Text="@($"{_callDuration:hh\\:mm\\:ss}")" />
                 <span style="margin-left: 16px;">参与者: @_room.Participants.Count</span>
+            </div>
+        </div>
+
+        <!-- 波形可视化区域 -->
+        <div class="waveform-section">
+            <div class="waveform-row">
+                <WaveformVisualizer @ref="_inputWaveform" 
+                                  Width="800" 
+                                  Height="100" 
+                                  Label="输入音频波形"
+                                  Color="#1890ff"
+                                  BackgroundColor="rgba(0, 0, 0, 0.3)" />
+            </div>
+            <div class="waveform-row">
+                <WaveformVisualizer @ref="_processedWaveform" 
+                                  Width="800" 
+                                  Height="100" 
+                                  Label="3A 处理后波形"
+                                  Color="#52c41a"
+                                  BackgroundColor="rgba(0, 0, 0, 0.3)" />
             </div>
         </div>
 
@@ -103,6 +124,19 @@
         color: rgba(255, 255, 255, 0.9);
     }
 
+    .waveform-section {
+        padding: 16px 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .waveform-row {
+        width: 100%;
+        max-width: 800px;
+        margin: 0 auto;
+    }
+
     .call-main {
         flex: 1;
         display: flex;
@@ -169,6 +203,10 @@
     private float _audioLevel = 0;
     private TimeSpan _callDuration = TimeSpan.Zero;
     private System.Timers.Timer? _timer;
+    
+    // 波形可视化组件引用
+    private WaveformVisualizer? _inputWaveform;
+    private WaveformVisualizer? _processedWaveform;
 
     protected override async Task OnInitializedAsync()
     {
@@ -201,6 +239,8 @@
 
                 // 注册事件
                 AudioService.OnAudioLevel += OnAudioLevel;
+                AudioService.OnInputWaveform += OnInputWaveform;
+                AudioService.OnProcessedWaveform += OnProcessedWaveform;
                 AudioService.OnError += OnError;
                 Console.WriteLine("Call.razor: Event handlers registered");
 
@@ -233,6 +273,28 @@
         InvokeAsync(async () =>
         {
             await Message.Error($"通话错误: {message}");
+        });
+    }
+
+    private void OnInputWaveform(byte[] waveformData)
+    {
+        InvokeAsync(async () =>
+        {
+            if (_inputWaveform != null)
+            {
+                await _inputWaveform.UpdateWaveformAsync(waveformData);
+            }
+        });
+    }
+
+    private void OnProcessedWaveform(byte[] waveformData)
+    {
+        InvokeAsync(async () =>
+        {
+            if (_processedWaveform != null)
+            {
+                await _processedWaveform.UpdateWaveformAsync(waveformData);
+            }
         });
     }
 
@@ -272,6 +334,8 @@
         _timer?.Dispose();
 
         AudioService.OnAudioLevel -= OnAudioLevel;
+        AudioService.OnInputWaveform -= OnInputWaveform;
+        AudioService.OnProcessedWaveform -= OnProcessedWaveform;
         AudioService.OnError -= OnError;
 
         if (AudioService.IsConnected)

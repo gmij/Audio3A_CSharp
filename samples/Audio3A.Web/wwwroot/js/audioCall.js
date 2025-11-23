@@ -6,6 +6,12 @@ let analyser = null;
 let isMuted = false;
 let isActive = false;
 
+// 用于波形数据采集
+let scriptProcessor = null;
+let inputWaveformBuffer = [];
+let processedWaveformBuffer = [];
+const WAVEFORM_SAMPLE_SIZE = 200; // 波形数据点数量
+
 export function initialize(dotNetReference) {
     dotNetRef = dotNetReference;
     console.log('Audio call module initialized');
@@ -40,8 +46,37 @@ export async function startCall(roomId, enable3A) {
         const source = audioContext.createMediaStreamSource(localStream);
         analyser = audioContext.createAnalyser();
         analyser.fftSize = 256;
+        
+        // 创建 ScriptProcessor 用于采集波形数据
+        // 注意：ScriptProcessor 已被弃用，但在这里我们用它来演示
+        // 生产环境应该使用 AudioWorklet
+        scriptProcessor = audioContext.createScriptProcessor(2048, 1, 1);
+        
         source.connect(analyser);
-        console.log('Audio analyser connected');
+        analyser.connect(scriptProcessor);
+        scriptProcessor.connect(audioContext.destination);
+        
+        // 处理音频数据
+        scriptProcessor.onaudioprocess = function(e) {
+            if (!isActive || isMuted) return;
+            
+            const inputData = e.inputBuffer.getChannelData(0);
+            const outputData = e.outputBuffer.getChannelData(0);
+            
+            // 采样输入波形数据
+            collectWaveformData(inputData, inputWaveformBuffer, 'input');
+            
+            // 复制数据到输出（这里我们没有真正的3A处理，所以输出=输入）
+            // 在实际应用中，这里应该是经过3A处理后的数据
+            for (let i = 0; i < inputData.length; i++) {
+                outputData[i] = inputData[i];
+            }
+            
+            // 采样处理后的波形数据（这里模拟，实际上应该是3A处理后的）
+            collectWaveformData(outputData, processedWaveformBuffer, 'processed');
+        };
+        
+        console.log('Audio analyser and processor connected');
 
         isActive = true;
 
@@ -62,6 +97,11 @@ export async function startCall(roomId, enable3A) {
 export function endCall() {
     isActive = false;
 
+    if (scriptProcessor) {
+        scriptProcessor.disconnect();
+        scriptProcessor = null;
+    }
+
     if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
         localStream = null;
@@ -74,6 +114,8 @@ export function endCall() {
 
     analyser = null;
     isMuted = false;
+    inputWaveformBuffer = [];
+    processedWaveformBuffer = [];
 
     console.log('Call ended');
 }
@@ -123,5 +165,44 @@ function monitorAudioLevel() {
     // 继续监控
     if (isActive) {
         requestAnimationFrame(monitorAudioLevel);
+    }
+}
+
+// 采集波形数据
+function collectWaveformData(audioData, buffer, type) {
+    // 下采样到固定数量的点
+    const step = Math.floor(audioData.length / WAVEFORM_SAMPLE_SIZE);
+    const samples = [];
+    
+    for (let i = 0; i < WAVEFORM_SAMPLE_SIZE; i++) {
+        const index = i * step;
+        if (index < audioData.length) {
+            // 转换为 0-255 范围
+            const normalized = Math.abs(audioData[index]);
+            samples.push(Math.min(255, Math.floor(normalized * 255)));
+        } else {
+            samples.push(0);
+        }
+    }
+    
+    // 每隔一定帧数发送波形数据
+    if (!collectWaveformData.counter) collectWaveformData.counter = {};
+    if (!collectWaveformData.counter[type]) collectWaveformData.counter[type] = 0;
+    collectWaveformData.counter[type]++;
+    
+    // 每 10 帧发送一次波形数据（约每秒几次）
+    if (collectWaveformData.counter[type] % 10 === 0) {
+        if (dotNetRef && !isMuted) {
+            try {
+                const uint8Array = new Uint8Array(samples);
+                if (type === 'input') {
+                    dotNetRef.invokeMethodAsync('NotifyInputWaveform', Array.from(uint8Array));
+                } else if (type === 'processed') {
+                    dotNetRef.invokeMethodAsync('NotifyProcessedWaveform', Array.from(uint8Array));
+                }
+            } catch (err) {
+                console.error(`Failed to send ${type} waveform:`, err);
+            }
+        }
     }
 }

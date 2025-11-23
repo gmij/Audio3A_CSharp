@@ -1,0 +1,121 @@
+@using Microsoft.JSInterop
+
+<div class="waveform-container">
+    <canvas @ref="_canvasRef" width="@Width" height="@Height" class="waveform-canvas"></canvas>
+    @if (!string.IsNullOrEmpty(Label))
+    {
+        <div class="waveform-label">@Label</div>
+    }
+</div>
+
+<style>
+    .waveform-container {
+        position: relative;
+        background: rgba(0, 0, 0, 0.1);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .waveform-canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+    }
+
+    .waveform-label {
+        position: absolute;
+        top: 8px;
+        left: 12px;
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 12px;
+        font-weight: 500;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        pointer-events: none;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public int Width { get; set; } = 800;
+
+    [Parameter]
+    public int Height { get; set; } = 120;
+
+    [Parameter]
+    public string? Label { get; set; }
+
+    [Parameter]
+    public string Color { get; set; } = "#52c41a";
+
+    [Parameter]
+    public string BackgroundColor { get; set; } = "rgba(0, 0, 0, 0.5)";
+
+    [Inject]
+    private IJSRuntime JSRuntime { get; set; } = null!;
+
+    private ElementReference _canvasRef;
+    private IJSObjectReference? _module;
+    private DotNetObjectReference<WaveformVisualizer>? _objRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                _objRef = DotNetObjectReference.Create(this);
+                _module = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./js/waveform.js");
+                await _module.InvokeVoidAsync("initWaveform", _canvasRef, Width, Height, Color, BackgroundColor);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to initialize waveform: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// 更新波形数据
+    /// </summary>
+    public async Task UpdateWaveformAsync(float[] data)
+    {
+        if (_module != null)
+        {
+            try
+            {
+                await _module.InvokeVoidAsync("updateWaveform", _canvasRef, data);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to update waveform: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// 更新波形数据（byte array）
+    /// </summary>
+    public async Task UpdateWaveformAsync(byte[] data)
+    {
+        if (_module != null)
+        {
+            try
+            {
+                await _module.InvokeVoidAsync("updateWaveformFromBytes", _canvasRef, data);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to update waveform from bytes: {ex.Message}");
+            }
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module != null)
+        {
+            await _module.DisposeAsync();
+        }
+        _objRef?.Dispose();
+    }
+}
